@@ -15,13 +15,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.spi;
+package org.tikware.bot.local;
 
-import org.tikware.api.Order;
-import org.tikware.api.OrderListener;
+import org.tikware.bot.BotEvent;
+import org.tikware.bot.BotEventListener;
 
-public interface Transaction {
-    void quote(Order order, OrderListener listener);
+public class LocalBotContainer implements BotEventListener {
+    @Override
+    public void onEvent(BotEvent event) {
 
-    String getTradingDay();
+    }
 }

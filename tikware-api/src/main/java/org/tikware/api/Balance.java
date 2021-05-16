@@ -18,6 +18,7 @@
 package org.tikware.api;
 
 public class Balance {
+    private String id;
     private String user;
     private Double preBalance;
     private Double balance;
@@ -32,6 +33,14 @@ public class Balance {
     private Double withdraw;
     private String tradingDay;
     private String time;
+
+    public String getId() {
+        return id;
+    }
+
+    public void setId(String id) {
+        this.id = id;
+    }
 
     public Double getPositionProfit() {
         return positionProfit;

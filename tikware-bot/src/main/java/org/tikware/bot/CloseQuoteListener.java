@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.api.bot;
+package org.tikware.bot;
 
 import org.tikware.api.Order;
 import org.tikware.api.OrderListener;
@@ -26,10 +26,10 @@ import org.tikware.user.User;
 
 import java.util.List;
 
-public class CloseListener extends AbstractListener {
+public class CloseQuoteListener extends QuoteListener {
     private final OrderListener child;
 
-    public CloseListener(User user, OrderListener child, List<CloseInfo> infos) {
+    public CloseQuoteListener(User user, OrderListener child, List<CloseInfo> infos) {
         super(user, child, infos);
         this.child = child;
     }
@@ -38,7 +38,8 @@ public class CloseListener extends AbstractListener {
     protected void process(QuoteInfo info, Trade trade, User user) {
         var offset = trade.getOffset();
         if (offset == Order.CLOSE) {
-            user.close(info.getPositionId(), info.getCommissionId(), trade.getPrice());
+            user.close(user.getBalance().getUser(), info.getPositionId(),
+                    info.getCommissionId(), trade.getPrice());
             child.onTrade(trade);
         } else {
             onError(new IllegalOffsetException("Illegal trade offset: " + offset + "."));

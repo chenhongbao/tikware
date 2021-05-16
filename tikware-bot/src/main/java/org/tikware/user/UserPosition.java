@@ -19,6 +19,7 @@ package org.tikware.user;
 
 public class UserPosition {
     private String id;
+    private String user;
     private String symbol;
     private String exchange;
     private Double price;
@@ -53,6 +54,14 @@ public class UserPosition {
      * The position is normal.
      */
     public static final Character NORMAL = 'C';
+
+    public String getUser() {
+        return user;
+    }
+
+    public void setUser(String user) {
+        this.user = user;
+    }
 
     public String getId() {
         return id;

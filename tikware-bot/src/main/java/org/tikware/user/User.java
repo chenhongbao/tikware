@@ -17,6 +17,7 @@
 
 package org.tikware.user;
 
+import org.tikware.api.IllegalDirectionException;
 import org.tikware.api.Order;
 
 import java.util.*;
@@ -29,20 +30,43 @@ public class User {
     private final Map<String, UserPosition> positions = new ConcurrentHashMap<>();
     private final Map<String, UserCommission> commissions = new ConcurrentHashMap<>();
     private final Collection<UserCash> cashes = new ConcurrentLinkedQueue<>();
-    private final UserCommon common;
+    private final UserPersistence persistence;
 
     public User(UserBalance balance, Collection<UserPosition> positions,
             Collection<UserCommission> commissions, Collection<UserCash> cashes,
-            UserCommon userCommon) {
-        this.common = userCommon;
+            UserPersistence userCommon) {
+        this.persistence = userCommon;
         this.cashes.addAll(cashes);
         copyBalance(this.balance, balance);
         copyCommissions(this.commissions, commissions);
         copyPositions(this.positions, positions);
     }
 
-    public UserCommon getCommon() {
-        return common;
+    public static double profit(UserPosition position, double currentPrice) {
+        var s = position.getState();
+        if (s != UserPosition.NORMAL && s != UserPosition.FROZEN_CLOSE) {
+            return .0D;
+        }
+        double profit;
+        double openPrice = position.getPrice();
+        long mul = position.getMultiple();
+        Character direction = position.getDirection();
+        if (Objects.equals(direction, UserPosition.LONG)) {
+            profit = (currentPrice - openPrice) * mul;
+        } else if (Objects.equals(direction, UserPosition.SHORT)) {
+            profit = (openPrice - currentPrice) * mul;
+        } else {
+            throw new IllegalStateException("Invalid position direction: " + direction + ".");
+        }
+        return profit;
+    }
+
+    public static String nextId() {
+        return UUID.randomUUID().toString().replace("-", "");
+    }
+
+    public UserPersistence getPersistence() {
+        return persistence;
     }
 
     public User settle() {
@@ -51,20 +75,39 @@ public class User {
         b.setId(balance.getId());
         b.setUser(balance.getUser());
         b.setBalance(getDynamicBalance());
-        b.setTradingDay(common.getTradingDay());
-        b.setTime(common.getDateTime());
-        return new User(b, positions.values(), commissions.values(), cashes, common);
+        b.setTradingDay(persistence.getTradingDay());
+        b.setTime(persistence.getDateTime());
+        // Add new user balance to database.
+        persistence.alterUserBalance(balance.getUser(), b, UserPersistence.ALTER_ADD);
+        return new User(b, positions.values(), commissions.values(), cashes, persistence);
     }
 
     private void clearFrozen() {
         // Remove frozen, not traded commissions.
-        commissions.values().removeIf(commission -> commission.getState() == UserCommission.FROZEN);
+        var cit = commissions.values().iterator();
+        while (cit.hasNext()) {
+            var c = cit.next();
+            if (c.getState() == UserCommission.FROZEN) {
+                cit.remove();
+                // Remove commission from database.
+                persistence.alterUserCommission(balance.getUser(), c, UserPersistence.ALTER_DELETE);
+            }
+        }
         // Remove frozen, not open positions.
-        positions.values().removeIf(position -> position.getState() == UserPosition.FROZEN_OPEN);
         // Set frozen, not closed position to normal.
-        positions.values().stream()
-                 .filter(position -> position.getState() == UserPosition.FROZEN_CLOSE)
-                 .forEach(position -> position.setState(UserPosition.NORMAL));
+        var pit = positions.values().iterator();
+        while (pit.hasNext()) {
+            var p = pit.next();
+            if (p.getState() == UserPosition.FROZEN_OPEN) {
+                pit.remove();
+                // Remove frozen open position from database.
+                persistence.alterUserPosition(balance.getUser(), p, UserPersistence.ALTER_DELETE);
+            } else if (p.getState() == UserPosition.FROZEN_CLOSE) {
+                p.setState(UserPosition.NORMAL);
+                // Update position state in database.
+                persistence.alterUserPosition(balance.getUser(), p, UserPersistence.ALTER_UPDATE);
+            }
+        }
     }
 
     public void undo(OpenInfo info) {
@@ -73,8 +116,11 @@ public class User {
     }
 
     private void removePosition(String positionId) {
-        var r = positions.values().removeIf(position -> position.getId().equals(positionId));
-        if (!r) {
+        var p = positions.remove(positionId);
+        if (p != null) {
+            // Remove position from database.
+            persistence.alterUserPosition(balance.getUser(), p, UserPersistence.ALTER_DELETE);
+        } else {
             throw new PositionNotFoundException("Fail undo open position: " + positionId + ".");
         }
     }
@@ -82,12 +128,17 @@ public class User {
     public void undo(CloseInfo info) {
         var p = position(info.getPositionId());
         p.setState(UserPosition.NORMAL);
+        // Update position state.
+        persistence.alterUserPosition(balance.getUser(), p, UserPersistence.ALTER_UPDATE);
         removeCommission(info.getCommissionId());
     }
 
     private void removeCommission(String commissionId) {
-        var r = commissions.values().removeIf(commission -> commission.getId().equals(commissionId));
-        if (!r) {
+        var c = commissions.remove(commissionId);
+        if (c != null) {
+            // Remove commission from database.
+            persistence.alterUserCommission(balance.getUser(), c, UserPersistence.ALTER_DELETE);
+        } else {
             throw new CommissionNotFoundException("Fail undo open commission: " + commissionId + ".");
         }
     }
@@ -103,8 +154,8 @@ public class User {
         to.setId(from.getId());
         to.setUser(from.getUser());
         to.setBalance(from.getBalance());
-        to.setTradingDay(common.getTradingDay());
-        to.setTime(common.getDateTime());
+        to.setTradingDay(persistence.getTradingDay());
+        to.setTime(persistence.getDateTime());
     }
 
     private void copyPositions(Map<String, UserPosition> to, Collection<UserPosition> from) {
@@ -114,17 +165,29 @@ public class User {
         from.forEach(position -> to.put(position.getId(), position));
     }
 
-    public CloseInfo freezeClose(String symbol, Character direction, Double price)
+    public CloseInfo freezeClose(String user, String symbol, Character direction, Double price)
             throws IllegalCommissionException {
-        var commission = common.getCommission(symbol, price, direction, Order.CLOSE);
+        checkUser(user);
+        var commission = persistence.getCommission(symbol, price, direction, Order.CLOSE);
         checkCommission(commission);
-        var info = findPosition(symbol, direction);
+        var positionDirection = closeDirection(direction);
+        var info = findPosition(symbol, positionDirection);
         if (info.getError() != null) {
             return info;
         } else {
-            var commissionId = addCommission(symbol, direction, Order.CLOSE, commission);
+            var commissionId = addCommission(user, symbol, direction, Order.CLOSE, commission);
             info.setCommissionId(commissionId);
             return info;
+        }
+    }
+
+    private Character closeDirection(Character direction) {
+        if (Objects.equals(Order.BUY, direction)) {
+            return UserPosition.SHORT;
+        } else if (Objects.equals(Order.SELL, direction)) {
+            return UserPosition.LONG;
+        } else {
+            throw new IllegalDirectionException("Illegal order direction: " + direction + ".");
         }
     }
 
@@ -141,17 +204,26 @@ public class User {
         } else {
             var px = p.get(0);
             px.setState(UserPosition.FROZEN_CLOSE);
+            // Update position state in database.
+            persistence.alterUserPosition(balance.getUser(), px, UserPersistence.ALTER_UPDATE);
             info.setPositionId(px.getId());
         }
         return info;
     }
 
-    public void close(String positionId, String commissionId, Double price) {
+    public void close(String user, String positionId, String commissionId, Double price) {
+        checkUser(user);
         setCommission(commissionId, price);
-        closePosition(positionId, price);
+        closePosition(user, positionId, price);
     }
 
-    private void closePosition(String positionId, Double price) {
+    private void checkUser(String user) {
+        if (!balance.getUser().equalsIgnoreCase(user)) {
+            throw new WrongUserException("Wrong user " + user + ", expect " + balance.getUser() + ".");
+        }
+    }
+
+    private void closePosition(String user, String positionId, Double price) {
         var p = this.positions.get(positionId);
         if (p == null) {
             throw new PositionNotFoundException("Position not found: " + positionId + ".");
@@ -159,23 +231,29 @@ public class User {
             throw new InvalidPositionStateException("Invalid position state: " + p.getState() + ".");
         } else {
             positions.values().remove(p);
+            //Remove position from database.
+            persistence.alterUserPosition(balance.getUser(), p, UserPersistence.ALTER_DELETE);
             var profit = profit(p, price);
             var id = "S-" + nextId();
             var cash = new UserCash();
             cash.setId(id);
             cash.setCash(profit);
             cash.setSource(UserCash.CLOSE);
-            cash.setTradingDay(common.getTradingDay());
-            cash.setTime(common.getDateTime());
+            cash.setUser(user);
+            cash.setTradingDay(persistence.getTradingDay());
+            cash.setTime(persistence.getDateTime());
             cashes.add(cash);
+            // Add cash to database.
+            persistence.alterUserCash(balance.getUser(), cash, UserPersistence.ALTER_ADD);
         }
     }
 
-    public OpenInfo freezeOpen(String symbol, String exchange, Character direction, Double price)
-            throws IllegalMarginException, IllegalCommissionException {
-        var multiple = common.getMultiple(symbol);
-        var margin = common.getMargin(symbol, price, direction, Order.OPEN);
-        var commission = common.getCommission(symbol, price, direction, Order.OPEN);
+    public OpenInfo freezeOpen(String user, String symbol, String exchange, Character direction,
+            Double price) throws IllegalMarginException, IllegalCommissionException {
+        checkUser(user);
+        var multiple = persistence.getMultiple(symbol);
+        var margin = persistence.getMargin(symbol, price, direction, Order.OPEN);
+        var commission = persistence.getCommission(symbol, price, direction, Order.OPEN);
         checkMargin(margin);
         checkCommission(commission);
         var info = new OpenInfo();
@@ -184,14 +262,14 @@ public class User {
             info.setError(error);
             return info;
         } else {
-            var positionId = addPosition(symbol, exchange, direction, price, multiple, margin);
-            var commissionId = addCommission(symbol, direction, Order.OPEN, commission);
+            var positionId = addPosition(user, symbol, exchange, direction, price,
+                    multiple, margin);
+            var commissionId = addCommission(user, symbol, direction, Order.OPEN, commission);
             info.setPositionId(positionId);
             info.setCommissionId(commissionId);
             return info;
         }
     }
-
 
     private Throwable checkAvailability(Double margin, Double commission) {
         var a = getAvailable();
@@ -214,49 +292,60 @@ public class User {
         }
     }
 
-    private String addCommission(String symbol, Character direction, Character offset, Double commission) {
+    private String addCommission(String user, String symbol, Character direction,
+            Character offset, Double commission) {
         var id = "C-" + nextId();
         var c = new UserCommission();
         c.setId(id);
+        c.setUser(user);
         c.setSymbol(symbol);
         c.setOffset(offset);
         c.setDirection(direction);
         c.setCommission(commission);
-        c.setTradingDay(common.getTradingDay());
-        c.setTime(common.getDateTime());
+        c.setTradingDay(persistence.getTradingDay());
+        c.setTime(persistence.getDateTime());
         c.setState(UserCommission.FROZEN);
         commissions.put(id, c);
+        // Add commissions to database.
+        persistence.alterUserCommission(balance.getUser(), c, UserPersistence.ALTER_ADD);
         return id;
     }
 
-    private String addPosition(String symbol, String exchange, Character direction, Double price, Long multiple, Double margin) {
+    private String addPosition(String user, String symbol, String exchange, Character direction,
+            Double price, Long multiple, Double margin) {
         var id = "P-" + nextId();
         var p = new UserPosition();
         p.setId(id);
+        p.setUser(user);
         p.setSymbol(symbol);
         p.setExchange(exchange);
         p.setPrice(price);
         p.setMultiple(multiple);
         p.setMargin(margin);
         p.setDirection(direction);
-        p.setOpenTradingDay(common.getTradingDay());
-        p.setOpenTime(common.getDateTime());
+        p.setOpenTradingDay(persistence.getTradingDay());
+        p.setOpenTime(persistence.getDateTime());
         p.setState(UserPosition.FROZEN_OPEN);
         positions.put(id, p);
+        // Add position into database.
+        persistence.alterUserPosition(balance.getUser(), p, UserPersistence.ALTER_ADD);
         return id;
     }
 
-    public void open(String positionId, String commissionId, Double price) {
+    public void open(String user, String positionId, String commissionId, Double price) {
+        checkUser(user);
         setCommission(commissionId, price);
         openPosition(positionId, price);
     }
 
     private void setCommission(String commissionId, Double price) {
         var c = commission(commissionId);
-        var commission = common.getCommission(c.getSymbol(), price, c.getDirection(), c.getOffset());
+        var commission = persistence.getCommission(c.getSymbol(), price, c.getDirection(), c.getOffset());
         c.setCommission(commission);
         c.setState(UserCommission.NORMAL);
-        c.setTime(common.getDateTime());
+        c.setTime(persistence.getDateTime());
+        // Update commission in database.
+        persistence.alterUserCommission(balance.getUser(), c, UserPersistence.ALTER_UPDATE);
     }
 
     private UserCommission commission(String commissionId) {
@@ -273,11 +362,13 @@ public class User {
         if (p.getState() != UserPosition.FROZEN_OPEN) {
             throw new InvalidPositionStateException("Invalid position state: " + p.getState() + ".");
         } else {
-            var margin = common.getMargin(p.getSymbol(), price, p.getDirection(), Order.OPEN);
+            var margin = persistence.getMargin(p.getSymbol(), price, p.getDirection(), Order.OPEN);
             p.setPrice(price);
             p.setMargin(margin);
             p.setState(UserPosition.NORMAL);
-            p.setOpenTime(common.getDateTime());
+            p.setOpenTime(persistence.getDateTime());
+            // Update position state in database.
+            persistence.alterUserPosition(balance.getUser(), p, UserPersistence.ALTER_UPDATE);
         }
     }
 
@@ -351,27 +442,8 @@ public class User {
     }
 
     private double profit(UserPosition position) {
-        double curPrice = common.getPrice(position.getSymbol());
+        double curPrice = persistence.getPrice(position.getSymbol());
         return profit(position, curPrice);
-    }
-
-    public static double profit(UserPosition position, double currentPrice) {
-        var s = position.getState();
-        if (s != UserPosition.NORMAL && s != UserPosition.FROZEN_CLOSE) {
-            return .0D;
-        }
-        double profit;
-        double openPrice = position.getPrice();
-        long mul = position.getMultiple();
-        Character direction = position.getDirection();
-        if (Objects.equals(direction, UserPosition.LONG)) {
-            profit = (currentPrice - openPrice) * mul;
-        } else if (Objects.equals(direction, UserPosition.SHORT)) {
-            profit = (openPrice - currentPrice) * mul;
-        } else {
-            throw new IllegalStateException("Invalid position direction: " + direction + ".");
-        }
-        return profit;
     }
 
     public UserBalance getBalance() {
@@ -390,9 +462,5 @@ public class User {
 
     public Collection<UserCash> getCashes() {
         return new HashSet<>(cashes);
-    }
-
-    private String nextId() {
-        return UUID.randomUUID().toString().replace("-", "");
     }
 }

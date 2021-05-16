@@ -15,13 +15,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.spi;
+package org.tikware.bot;
 
-import org.tikware.api.Order;
-import org.tikware.api.OrderListener;
-
-public interface Transaction {
-    void quote(Order order, OrderListener listener);
-
-    String getTradingDay();
+public interface LogListener {
+    void onLog(String message, Throwable stacktrace);
 }

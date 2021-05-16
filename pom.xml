@@ -27,5 +27,6 @@
   <modules>
     <module>tikware-api</module>
     <module>tikware-bot</module>
+      <module>tikware-web</module>
   </modules>
 </project>

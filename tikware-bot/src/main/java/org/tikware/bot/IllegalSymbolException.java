@@ -15,10 +15,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.api.bot;
+package org.tikware.bot;
 
-public class IllegalOffsetException extends Exception {
-    public IllegalOffsetException(String s) {
+public class IllegalSymbolException extends RuntimeException {
+    public IllegalSymbolException(String s) {
         super(s);
     }
 }

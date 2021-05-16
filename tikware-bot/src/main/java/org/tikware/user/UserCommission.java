@@ -19,6 +19,7 @@ package org.tikware.user;
 
 public class UserCommission {
     private String id;
+    private String user;
     private String symbol;
     private Character direction;
     private Character offset;
@@ -36,6 +37,14 @@ public class UserCommission {
      * The position is normal.
      */
     public static final Character NORMAL = 'E';
+
+    public String getUser() {
+        return user;
+    }
+
+    public void setUser(String user) {
+        this.user = user;
+    }
 
     public String getId() {
         return id;

@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.api.bot;
+package org.tikware.bot;
 
 import org.tikware.api.OrderListener;
 import org.tikware.api.Trade;
@@ -25,12 +25,12 @@ import org.tikware.user.User;
 import java.util.LinkedList;
 import java.util.List;
 
-public abstract class AbstractListener implements OrderListener {
+public abstract class QuoteListener implements OrderListener {
     private final User user;
     private final OrderListener child;
     private final List<QuoteInfo> infos = new LinkedList<>();
 
-    public AbstractListener(User user, OrderListener child, List<? extends QuoteInfo> infos) {
+    public QuoteListener(User user, OrderListener child, List<? extends QuoteInfo> infos) {
         this.user = user;
         this.child  = child;
         this.infos.addAll(infos);

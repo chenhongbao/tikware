@@ -15,10 +15,8 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.api.bot;
+package org.tikware.bot;
 
-public class QuoteInfoUnderflowException extends Exception {
-    public QuoteInfoUnderflowException(String s) {
-        super(s);
-    }
+public interface BotEventListener {
+    void onEvent(BotEvent event);
 }

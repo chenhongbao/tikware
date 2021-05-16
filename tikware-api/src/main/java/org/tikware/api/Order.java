@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 
 public class Order {
     private String id;
+    private String user;
     private String symbol;
     private String exchange;
     private Double price;
@@ -33,6 +34,14 @@ public class Order {
     public static final Character SELL = 'G';
     public static final Character OPEN = 'H';
     public static final Character CLOSE = 'I';
+
+    public String getUser() {
+        return user;
+    }
+
+    public void setUser(String user) {
+        this.user = user;
+    }
 
     public String getExchange() {
         return exchange;

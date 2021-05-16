@@ -15,7 +15,7 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.api.bot;
+package org.tikware.bot;
 
 import org.tikware.api.*;
 import org.tikware.spi.Datafeed;
@@ -26,13 +26,15 @@ import java.awt.geom.IllegalPathStateException;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class BotContainer implements Environment {
+public class BotEnvironment implements Environment {
     private final User user;
+    private final LogListener log;
     private final Transaction transaction;
     private final Datafeed datafeed;
 
-    public BotContainer(User user, Transaction transaction, Datafeed datafeed) {
+    public BotEnvironment(User user, LogListener log, Transaction transaction, Datafeed datafeed) {
         this.user = user;
+        this.log = log;
         this.transaction = transaction;
         this.datafeed = datafeed;
     }
@@ -57,7 +59,7 @@ public class BotContainer implements Environment {
     }
 
     private void close(Order order, OrderListener listener) throws IllegalCommissionException {
-        List<CloseInfo> infos = freezeClose(order.getSymbol(), order.getDirection(),
+        List<CloseInfo> infos = freezeClose(order.getUser(),order.getSymbol(), order.getDirection(),
                 order.getPrice(), order.getQuantity());
         // Encountering error, all open infos are cleared and the error info is
         // added to collection.
@@ -67,17 +69,17 @@ public class BotContainer implements Environment {
             listener.onError(new IllegalQuantityException("Empty close quantity."));
         } else {
             synchronized (transaction) {
-                transaction.quote(order, new CloseListener(user, listener, infos));
+                transaction.quote(order, new CloseQuoteListener(user, listener, infos));
             }
         }
     }
 
-    private List<CloseInfo> freezeClose(String symbol, Character direction, Double price,
+    private List<CloseInfo> freezeClose(String u, String symbol, Character direction, Double price,
             Long quantity) throws IllegalCommissionException {
         var r = new LinkedList<CloseInfo>();
         var count = 0;
         while (count++ < quantity) {
-            var info = user.freezeClose(symbol, direction, price);
+            var info = user.freezeClose(u, symbol, direction, price);
             if (info.getError() != null) {
                 r.forEach(user::undo);
                 r.clear();
@@ -91,8 +93,8 @@ public class BotContainer implements Environment {
 
     private void open(Order order, OrderListener listener) throws IllegalMarginException,
             IllegalCommissionException {
-        var infos = freezeOpen(order.getSymbol(), order.getExchange(), order.getDirection(),
-                order.getPrice(), order.getQuantity());
+        var infos = freezeOpen(order.getUser(), order.getSymbol(), order.getExchange(),
+                order.getDirection(), order.getPrice(), order.getQuantity());
         // Encountering error, all open infos are cleared and the error info is
         // added to collection.
         if (infos.size() == 1 && infos.get(0).getError() != null) {
@@ -101,18 +103,18 @@ public class BotContainer implements Environment {
             listener.onError(new IllegalQuantityException("Empty open quantity."));
         } else {
             synchronized (transaction) {
-                transaction.quote(order, new OpenListener(user, listener, infos));
+                transaction.quote(order, new OpenQuoteListener(user, listener, infos));
             }
         }
     }
 
-    private List<OpenInfo> freezeOpen(String symbol, String exchange, Character direction,
-            Double price, Long quantity)
+    private List<OpenInfo> freezeOpen(String u, String symbol, String exchange,
+            Character direction, Double price, Long quantity)
             throws IllegalMarginException, IllegalCommissionException {
         var r = new LinkedList<OpenInfo>();
         int count = 0;
         while (count++ < quantity) {
-            var info = user.freezeOpen(symbol, exchange, direction, price);
+            var info = user.freezeOpen(u, symbol, exchange, direction, price);
             if (info.getError() != null) {
                 r.forEach(user::undo);
                 r.clear();
@@ -151,8 +153,8 @@ public class BotContainer implements Environment {
                      + b.getPositionProfit() + b.getCloseProfit() - b.getCommission());
         b.setAvailable(b.getBalance() - b.getMargin() - b.getFrozenMargin()
                        - b.getFrozenCommission());
-        b.setTime(user.getCommon().getDateTime());
-        b.setTradingDay(user.getCommon().getTradingDay());
+        b.setTime(user.getPersistence().getDateTime());
+        b.setTradingDay(user.getPersistence().getTradingDay());
         return b;
     }
 
@@ -170,6 +172,18 @@ public class BotContainer implements Environment {
         return ps;
     }
 
+    @Override
+    public void log(String message, Throwable stacktrace) {
+        try {
+            log.onLog(message, stacktrace);
+        } catch (Throwable throwable) {
+            try {
+                log.onLog("Logging failed.", throwable);
+            } catch (Throwable ignored) {
+            }
+        }
+    }
+
     private void updatePosition(Position p, UserPosition position) {
         var s = position.getState();
         var m = position.getMargin();
@@ -185,7 +199,7 @@ public class BotContainer implements Environment {
         p.setVolume(p.getVolume() + 1);
         p.setMargin(p.getMargin() + m);
         // Update position profit to latest price.
-        var price = user.getCommon().getPrice(position.getSymbol());
+        var price = user.getPersistence().getPrice(position.getSymbol());
         var profit = User.profit(position, price);
         p.setPositionProfit(p.getPositionProfit() + profit);
     }
@@ -199,8 +213,8 @@ public class BotContainer implements Environment {
             var p = new Position();
             p.setSymbol(symbol);
             p.setDirection(direction);
-            p.setTradingDay(user.getCommon().getTradingDay());
-            p.setTime(user.getCommon().getDateTime());
+            p.setTradingDay(user.getPersistence().getTradingDay());
+            p.setTime(user.getPersistence().getDateTime());
             ps.add(p);
             return p;
         }

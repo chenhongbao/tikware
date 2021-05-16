@@ -15,10 +15,14 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.api.bot;
+package org.tikware.bot.remote;
 
-public class IllegalQuantityException extends Exception{
-    public IllegalQuantityException(String message) {
-        super(message);
+import org.tikware.bot.BotEvent;
+import org.tikware.bot.BotEventListener;
+
+public class RemoteBotContainer implements BotEventListener {
+    @Override
+    public void onEvent(BotEvent event) {
+
     }
 }

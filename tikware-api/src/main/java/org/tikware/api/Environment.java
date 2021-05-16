@@ -29,4 +29,6 @@ public interface Environment {
     Balance getBalance();
 
     Collection<Position> getPositions(String symbol);
+
+    void log(String message, Throwable stacktrace);
 }

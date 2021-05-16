@@ -15,18 +15,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.user;
+package org.tikware.bot;
 
-public interface UserCommon {
-    String getTradingDay();
-
-    String getDateTime();
-
-    Double getPrice(String symbol);
-
-    Long getMultiple(String symbol);
-
-    Double getMargin(String symbol, Double price, Character direction, Character offset);
-
-    Double getCommission(String symbol, Double price, Character direction, Character offset);
+public class IllegalQuantityException extends Exception{
+    public IllegalQuantityException(String message) {
+        super(message);
+    }
 }

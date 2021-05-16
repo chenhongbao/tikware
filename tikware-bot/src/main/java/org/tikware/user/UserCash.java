@@ -19,6 +19,7 @@ package org.tikware.user;
 
 public class UserCash {
     private String id;
+    private String user;
     private Double cash;
     private Character source;
     private String tradingDay;
@@ -39,6 +40,13 @@ public class UserCash {
      */
     public static final Character CLOSE = '2';
 
+    public String getUser() {
+        return user;
+    }
+
+    public void setUser(String user) {
+        this.user = user;
+    }
 
     public void setId(String id) {
         this.id = id;
