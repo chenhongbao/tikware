@@ -21,12 +21,21 @@ public class UserInfo {
     private String id;
     private String user;
     private String password;
+    private String nickname;
     private Character privilege;
     private String joinTime;
 
     public static final Character ADMIN = 'L';
     public static final Character MANAGER = 'M';
     public static final Character USER = 'N';
+
+    public String getNickname() {
+        return nickname;
+    }
+
+    public void setNickname(String nickname) {
+        this.nickname = nickname;
+    }
 
     public String getId() {
         return id;

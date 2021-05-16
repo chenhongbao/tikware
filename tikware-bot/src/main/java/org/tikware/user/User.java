@@ -168,14 +168,16 @@ public class User {
     public CloseInfo freezeClose(String user, String symbol, Character direction, Double price)
             throws IllegalCommissionException {
         checkUser(user);
-        var commission = persistence.getCommission(symbol, price, direction, Order.CLOSE);
-        checkCommission(commission);
         var positionDirection = closeDirection(direction);
+        var commission = persistence.getCommission(symbol, price, positionDirection,
+                Order.CLOSE);
+        checkCommission(commission);
         var info = findPosition(symbol, positionDirection);
         if (info.getError() != null) {
             return info;
         } else {
-            var commissionId = addCommission(user, symbol, direction, Order.CLOSE, commission);
+            var commissionId = addCommission(user, symbol, positionDirection, Order.CLOSE,
+                    commission);
             info.setCommissionId(commissionId);
             return info;
         }
@@ -251,9 +253,10 @@ public class User {
     public OpenInfo freezeOpen(String user, String symbol, String exchange, Character direction,
             Double price) throws IllegalMarginException, IllegalCommissionException {
         checkUser(user);
+        var positionDirection = positionDirection(direction);
         var multiple = persistence.getMultiple(symbol);
-        var margin = persistence.getMargin(symbol, price, direction, Order.OPEN);
-        var commission = persistence.getCommission(symbol, price, direction, Order.OPEN);
+        var margin = persistence.getMargin(symbol, price, positionDirection, Order.OPEN);
+        var commission = persistence.getCommission(symbol, price, positionDirection, Order.OPEN);
         checkMargin(margin);
         checkCommission(commission);
         var info = new OpenInfo();
@@ -262,12 +265,23 @@ public class User {
             info.setError(error);
             return info;
         } else {
-            var positionId = addPosition(user, symbol, exchange, direction, price,
+            var positionId = addPosition(user, symbol, exchange, positionDirection, price,
                     multiple, margin);
-            var commissionId = addCommission(user, symbol, direction, Order.OPEN, commission);
+            var commissionId = addCommission(user, symbol, positionDirection, Order.OPEN,
+                    commission);
             info.setPositionId(positionId);
             info.setCommissionId(commissionId);
             return info;
+        }
+    }
+
+    private Character positionDirection(Character direction) {
+        if (Objects.equals(direction, Order.BUY)) {
+            return UserPosition.LONG;
+        } else if (Objects.equals(direction, Order.SELL)) {
+            return UserPosition.SHORT;
+        } else {
+            throw new IllegalDirectionException("Illegal order direction " + direction + ".");
         }
     }
 
