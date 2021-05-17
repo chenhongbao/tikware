@@ -83,5 +83,5 @@ public interface UserPersistence {
 
     Collection<UserInfo> getUserInfos();
 
-    void alterUserInfos(UserInfo user, Character alter);
+    void alterUserInfo(UserInfo user, Character alter);
 }

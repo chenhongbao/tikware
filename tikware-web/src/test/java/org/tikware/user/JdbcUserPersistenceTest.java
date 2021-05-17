@@ -324,4 +324,129 @@ public class JdbcUserPersistenceTest {
         cs = db().getUserCashes("hb.chen");
         assertTrue(cs.isEmpty());
     }
+
+    @Test
+    public void getUserCommission() {
+        var c = new UserCommission();
+        c.setId("M-100000001");
+        c.setUser("hb.chen");
+        c.setSymbol("c2109");
+        c.setDirection(UserPosition.LONG);
+        c.setOffset(Order.OPEN);
+        c.setCommission(1.21D);
+        c.setTradingDay("20210517");
+        c.setTime("20210517 17:15:34.231");
+        c.setState(UserCommission.FROZEN);
+        // Query empty table.
+        var uc = db().getUserCommissions("hb.chen");
+        assertTrue(uc.isEmpty());
+        // Test add commission.
+        db().alterUserCommission("hb.chen", c, UserPersistence.ALTER_ADD);
+        // Check add result.
+        uc = db().getUserCommissions("hb.chen");
+        assertNotNull(uc);
+        assertEquals(1, uc.size());
+        // Check equality.
+        var c0 = uc.iterator().next();
+        assertEquals(c.getId(), c0.getId());
+        assertEquals(c.getUser(), c0.getUser());
+        assertEquals(c.getSymbol(), c0.getSymbol());
+        assertEquals(c.getDirection(), c0.getDirection());
+        assertEquals(c.getOffset(), c0.getOffset());
+        assertEquals(c.getCommission(), c0.getCommission());
+        assertEquals(c.getTradingDay(), c0.getTradingDay());
+        assertEquals(c.getTime(), c0.getTime());
+        assertEquals(c.getState(), c0.getState());
+        // Test update commission.
+        c0.setState(UserCommission.NORMAL);
+        db().alterUserCommission("hb.chen", c0, UserPersistence.ALTER_UPDATE);
+        // Check update result.
+        uc = db().getUserCommissions("hb.chen");
+        assertEquals(1, uc.size());
+        var c1 = uc.iterator().next();
+        assertEquals(c1.getId(), c0.getId());
+        assertEquals(c1.getUser(), c0.getUser());
+        assertEquals(c1.getSymbol(), c0.getSymbol());
+        assertEquals(c1.getDirection(), c0.getDirection());
+        assertEquals(c1.getOffset(), c0.getOffset());
+        assertEquals(c1.getCommission(), c0.getCommission());
+        assertEquals(c1.getTradingDay(), c0.getTradingDay());
+        assertEquals(c1.getTime(), c0.getTime());
+        assertEquals(c1.getState(), c0.getState());
+        // Add more commissions.
+        c1.setId("M-100000002");
+        db().alterUserCommission("hb.chen", c1, UserPersistence.ALTER_ADD);
+        c1.setId("M-100000003");
+        c1.setCommission(0.0D);
+        db().alterUserCommission("hb.chen", c1, UserPersistence.ALTER_ADD);
+        // Check more results.
+        uc = db().getUserCommissions("hb.chen");
+        assertEquals(3, uc.size());
+        // Test delete.
+        c1.setId("M-100000001");
+        db().alterUserCommission("hb.chen", c1, UserPersistence.ALTER_DELETE);
+        c1.setId("M-100000002");
+        db().alterUserCommission("hb.chen", c1, UserPersistence.ALTER_DELETE);
+        // Check delete results/
+        uc = db().getUserCommissions("hb.chen");
+        assertEquals(1, uc.size());
+        // Check equality.
+        var c2 = uc.iterator().next();
+        // Recover ID.
+        c1.setId("M-100000003");
+        assertEquals(c1.getId(), c2.getId());
+        assertEquals(c1.getUser(), c2.getUser());
+        assertEquals(c1.getSymbol(), c2.getSymbol());
+        assertEquals(c1.getDirection(), c2.getDirection());
+        assertEquals(c1.getOffset(), c2.getOffset());
+        assertEquals(c1.getCommission(), c2.getCommission());
+        assertEquals(c1.getTradingDay(), c2.getTradingDay());
+        assertEquals(c1.getTime(), c2.getTime());
+        assertEquals(c1.getState(), c2.getState());
+    }
+
+    @Test
+    public void getUserInfo() {
+        var u = new UserInfo();
+        u.setId("U-1");
+        u.setUser("hb.chen");
+        u.setPassword("123456");
+        u.setNickname("陈宏葆");
+        u.setPrivilege(UserInfo.ADMIN);
+        u.setJoinTime("20210517 17:52:23.324");
+        // Query empty table.
+        var us = db().getUserInfos();
+        assertTrue(us.isEmpty());
+        // Add one user.
+        db().alterUserInfo(u, UserPersistence.ALTER_ADD);
+        // Check add result.
+        us = db().getUserInfos();
+        assertEquals(1, us.size());
+        // Check equality.
+        var u0 = us.iterator().next();
+        assertEquals(u.getId(), u0.getId());
+        assertEquals(u.getUser(), u0.getUser());
+        assertEquals(u.getPassword(), u0.getPassword());
+        assertEquals(u.getNickname(), u0.getNickname());
+        assertEquals(u.getPrivilege(), u0.getPrivilege());
+        assertEquals(u.getJoinTime(), u0.getJoinTime());
+        // Update user privilege.
+        u0.setPrivilege(UserInfo.MANAGER);
+        db().alterUserInfo(u0, UserPersistence.ALTER_UPDATE);
+        // Check update result.
+        us = db().getUserInfos();
+        assertEquals(1, us.size());
+        var u1 = us.iterator().next();
+        assertEquals(u1.getId(), u0.getId());
+        assertEquals(u1.getUser(), u0.getUser());
+        assertEquals(u1.getPassword(), u0.getPassword());
+        assertEquals(u1.getNickname(), u0.getNickname());
+        assertEquals(u1.getPrivilege(), u0.getPrivilege());
+        assertEquals(u1.getJoinTime(), u0.getJoinTime());
+        // Test delete.
+        db().alterUserInfo(u1, UserPersistence.ALTER_DELETE);
+        // Check delete result.
+        us = db().getUserInfos();
+        assertTrue(us.isEmpty());
+    }
 }

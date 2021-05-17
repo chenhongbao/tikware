@@ -854,21 +854,237 @@ public abstract class JdbcUserPersistence implements UserPersistence {
 
     @Override
     public Collection<UserCommission> getUserCommissions(String user) {
-        return null;
+        var table = ensureUserCommission(user);
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "SELECT * FROM " + table + " WHERE _USER = ?")) {
+            stmt.setString(1, user);
+            var rs = stmt.executeQuery();
+            var r = new HashSet<UserCommission>();
+            while (rs.next()) {
+                r.add(buildUserCommission(rs));
+            }
+            return r;
+        } catch (SQLException error) {
+            throw new Error("Failed querying user commission for " + user + ". " +
+                            error.getMessage(), error);
+        }
+    }
+
+    private UserCommission buildUserCommission(ResultSet rs) throws SQLException {
+        var c = new UserCommission();
+        c.setId(rs.getString("_ID"));
+        c.setUser(rs.getString("_USER"));
+        c.setSymbol(rs.getString("_SYMBOL"));
+        c.setDirection(rs.getString("_DIRECTION").charAt(0));
+        c.setOffset(rs.getString("_OFFSET").charAt(0));
+        c.setCommission(rs.getDouble("_COMMISSION"));
+        c.setTradingDay(rs.getString("_TRADING_DAY"));
+        c.setTime(rs.getString("_TIME"));
+        c.setState(rs.getString("_STATE").charAt(0));
+        return c;
     }
 
     @Override
     public void alterUserCommission(String user, UserCommission commission, Character alter) {
+        ensureUserCommission(user);
+        if (Objects.equals(alter, ALTER_ADD)) {
+            addUserCommission(user, commission);
+        } else if (Objects.equals(alter, ALTER_UPDATE)) {
+            updateUserCommission(user, commission);
+        } else if (Objects.equals(alter, ALTER_DELETE)) {
+            deleteUserCommission(user, commission);
+        } else {
+            throw new Error("Unsupported data operation: " + alter + ".");
+        }
+    }
 
+    private void addUserCommission(String user, UserCommission commission) {
+        var table = userTableName(user, "_USER_COMMISSION_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "INSERT INTO " + table + " (_ID, _USER, _SYMBOL, _DIRECTION, _OFFSET," +
+                " _COMMISSION, _TRADING_DAY, _TIME, _STATE) VALUES (?,?,?,?,?,?,?,?,?)")) {
+            stmt.setString(1, commission.getId());
+            stmt.setString(2, commission.getUser());
+            stmt.setString(3, commission.getSymbol());
+            stmt.setString(4, String.valueOf(commission.getDirection()));
+            stmt.setString(5, String.valueOf(commission.getOffset()));
+            stmt.setDouble(6, commission.getCommission());
+            stmt.setString(7, commission.getTradingDay());
+            stmt.setString(8, commission.getTime());
+            stmt.setString(9, String.valueOf(commission.getState()));
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed querying user commission for " + user + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed querying user commission for " + user + ". " +
+                            error.getMessage(), error);
+        }
+    }
+
+    private void updateUserCommission(String user, UserCommission commission) {
+        var table = userTableName(user, "_USER_COMMISSION_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "UPDATE " + table + " SET _SYMBOL = ?, _DIRECTION = ?, _OFFSET = ?, " +
+                "_COMMISSION = ?, _TRADING_DAY = ?, _TIME = ?, _STATE = ? " +
+                "WHERE _ID = ? AND _USER = ?")) {
+            stmt.setString(1, commission.getSymbol());
+            stmt.setString(2, String.valueOf(commission.getDirection()));
+            stmt.setString(3, String.valueOf(commission.getOffset()));
+            stmt.setDouble(4, commission.getCommission());
+            stmt.setString(5, commission.getTradingDay());
+            stmt.setString(6, commission.getTime());
+            stmt.setString(7, String.valueOf(commission.getState()));
+            stmt.setString(8, commission.getId());
+            stmt.setString(9, commission.getUser());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed updating user commission for " + user + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed updating user commission for " + user + ". " +
+                            error.getMessage(), error);
+        }
+    }
+
+    private void deleteUserCommission(String user, UserCommission commission) {
+        var table = userTableName(user, "_USER_COMMISSION_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "DELETE FROM " + table + " WHERE _ID = ? AND _USER = ?")) {
+            stmt.setString(1, commission.getId());
+            stmt.setString(2, commission.getUser());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed deleting user commission for " + user + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed deleting user commission for " + user + ". " +
+                            error.getMessage(), error);
+        }
+    }
+
+    private String ensureUserCommission(String user) {
+        var table = userTableName(user, "_USER_COMMISSION_TABLE");
+        try {
+            if (tableExists("%", table)) {
+                return table;
+            }
+            createTable("CREATE TABLE " + table + " (_ID CHAR(128), _USER CHAR(128), " +
+                        "_SYMBOL CHAR(128), _DIRECTION CHAR(1), _OFFSET CHAR(1), " +
+                        "_COMMISSION DOUBLE, _TRADING_DAY CHAR(8), _TIME CHAR(32), " +
+                        "_STATE CHAR(1))");
+            return table;
+        } catch (SQLException error) {
+            throw new Error("Failed ensuring user commission for " + user + ". " +
+                            error.getMessage(), error);
+        }
     }
 
     @Override
     public Collection<UserInfo> getUserInfos() {
-        return null;
+        ensureUserInfo();
+        try (Statement stmt = connection().createStatement()) {
+            var rs = stmt.executeQuery("SELECT * FROM _USER_INFO_TABLE");
+            var r = new HashSet<UserInfo>();
+            while (rs.next()) {
+                r.add(buildUserInfo(rs));
+            }
+            return r;
+        } catch (SQLException error) {
+            throw new Error("Failed querying user info. " + error.getMessage(), error);
+        }
+    }
+
+    private UserInfo buildUserInfo(ResultSet rs) throws SQLException {
+        var u = new UserInfo();
+        u.setId(rs.getString("_ID"));
+        u.setUser(rs.getString("_USER"));
+        u.setPassword(rs.getString("_PASSWORD"));
+        u.setNickname(rs.getString("_NICKNAME"));
+        u.setPrivilege(rs.getString("_PRIVILEGE").charAt(0));
+        u.setJoinTime(rs.getString("_JOIN_TIME"));
+        return u;
     }
 
     @Override
-    public void alterUserInfos(UserInfo user, Character alter) {
+    public void alterUserInfo(UserInfo user, Character alter) {
+        ensureUserInfo();
+        if (Objects.equals(alter, ALTER_ADD)) {
+            addUserInfo(user);
+        } else if (Objects.equals(alter, ALTER_UPDATE)) {
+            updateUserInfo(user);
+        } else if (Objects.equals(alter, ALTER_DELETE)) {
+            deleteUserInfo(user);
+        } else {
+            throw new Error("Unsupported data operation: " + alter + ".");
+        }
+    }
 
+    private void addUserInfo(UserInfo user) {
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "INSERT INTO _USER_INFO_TABLE (_ID, _USER, _PASSWORD, _NICKNAME, " +
+                "_PRIVILEGE, _JOIN_TIME) VALUES (?,?,?,?,?,?)")) {
+            stmt.setString(1, user.getId());
+            stmt.setString(2, user.getUser());
+            stmt.setString(3, user.getPassword());
+            stmt.setString(4, user.getNickname());
+            stmt.setString(5, String.valueOf(user.getPrivilege()));
+            stmt.setString(6, user.getJoinTime());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed adding user info for " + user.getUser() + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed adding user info for " + user.getUser() + ". " +
+                            error.getMessage(), error);
+        }
+    }
+
+    private void updateUserInfo(UserInfo user) {
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "UPDATE _USER_INFO_TABLE SET _PASSWORD = ?, _NICKNAME = ?, _PRIVILEGE = ?, " +
+                "_JOIN_TIME = ? WHERE _ID = ? AND _USER = ?")) {
+            stmt.setString(1, user.getPassword());
+            stmt.setString(2, user.getNickname());
+            stmt.setString(3, String.valueOf(user.getPrivilege()));
+            stmt.setString(4, user.getJoinTime());
+            stmt.setString(5, user.getId());
+            stmt.setString(6, user.getUser());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed updating user info for " + user.getUser() + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed updating user info for " + user.getUser() + ". " +
+                            error.getMessage(), error);
+        }
+    }
+
+    private void deleteUserInfo(UserInfo user) {
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "DELETE FROM _USER_INFO_TABLE WHERE _ID = ? AND _USER = ?")) {
+            stmt.setString(1, user.getId());
+            stmt.setString(2, user.getUser());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed deleting user info for " + user.getUser() + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed deleting user info for " + user.getUser() + ". " +
+                            error.getMessage(), error);
+        }
+    }
+
+    private void ensureUserInfo() {
+        try {
+            if (tableExists("%", "_USER_INFO_TABLE")) {
+                return;
+            }
+            createTable("CREATE TABLE \"_USER_INFO_TABLE\" (_ID CHAR(128), _USER CHAR(128), " +
+                        "_PASSWORD CHAR(128), _NICKNAME CHAR(128), _PRIVILEGE CHAR(1), " +
+                        "_JOIN_TIME CHAR(32))");
+        } catch (SQLException error) {
+            throw new Error("Failed ensuring user info. " + error.getMessage(), error);
+        }
     }
 }
