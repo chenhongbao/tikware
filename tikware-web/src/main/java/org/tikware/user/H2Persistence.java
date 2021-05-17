@@ -17,8 +17,6 @@
 
 package org.tikware.user;
 
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Connection;
@@ -34,36 +32,39 @@ public class H2Persistence extends JdbcUserPersistence {
         this.db = db;
     }
 
-    public Path getPath() {
-        return Paths.get(dir, db);
+    public void deleteDb() {
+        close();
+        org.h2.tools.DeleteDbFiles.execute(dir, db, true);
     }
 
-    public void clearDb() {
+    public void close() {
         try {
-            if (Files.exists(getPath())) {
-                Files.delete(getPath());
+            if (connection().isClosed()) {
+                return;
             }
-        } catch (IOException e) {
-            throw new Error("Failed deleting database files: " + getPath() + ".", e);
+            connection().close();
+        } catch (SQLException error) {
+            throw new Error("Failed closing connection: " + concat(dir, db) + ". "
+                            + error.getMessage(), error);
+        }
+    }
+
+    private Path getActualPath(String dir) {
+        var i = dir.lastIndexOf('~');
+        if (i == -1) {
+            return Paths.get(dir).toAbsolutePath();
+        } else {
+            return Paths.get(System.getProperty( "user.dir"), dir.substring(i+1))
+                        .toAbsolutePath();
         }
     }
 
     @Override
-    public Connection connect() {
+    public Connection open() {
         try {
-            ensurePath(dir);
             return DriverManager.getConnection("jdbc:h2:" + concat(dir, db), "sa", "");
         } catch (SQLException throwable) {
             throw new Error("Failed connecting database. " + throwable.getMessage(), throwable);
-        }
-    }
-
-    private void ensurePath(String path) {
-        Path p = Paths.get(path);
-        try {
-            Files.createDirectories(p);
-        } catch (IOException e) {
-            throw new Error("Failed creating directories " + path + ".", e);
         }
     }
 

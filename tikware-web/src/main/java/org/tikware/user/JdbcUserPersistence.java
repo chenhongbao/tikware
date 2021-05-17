@@ -21,6 +21,7 @@ import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Objects;
 
 public abstract class JdbcUserPersistence implements UserPersistence {
@@ -29,14 +30,15 @@ public abstract class JdbcUserPersistence implements UserPersistence {
 
     /**
      * Provide connection to custom data source.
+     *
      * @return {@link Connection}
      */
-    public abstract Connection connect();
+    public abstract Connection open();
 
     protected Connection connection() {
         try {
             if (dbc == null || !dbc.isValid(1)) {
-                dbc = connect();
+                dbc = open();
             }
             return dbc;
         } catch (SQLException error) {
@@ -489,7 +491,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
     @Override
     public UserBalance getUserBalance(String user) {
         var table = ensureUserBalance(user);
-        try (PreparedStatement stmt  = connection().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "SELECT * FROM " + table + " WHERE _USER = ?")) {
             stmt.setString(1, user);
             var rs = stmt.executeQuery();
@@ -515,7 +517,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
 
     @Override
     public void alterUserBalance(String user, UserBalance balance, Character alter) {
-        var b = getUserBalance(user);
+        ensureUserBalance(user);
         if (Objects.equals(alter, ALTER_ADD)) {
             addUserBalance(user, balance);
         } else if (Objects.equals(alter, ALTER_UPDATE)) {
@@ -527,11 +529,9 @@ public abstract class JdbcUserPersistence implements UserPersistence {
         }
     }
 
-    private final static String USER_BALANCE_TABLE = "_USER_BALANCE_TABLE";
-
     private void addUserBalance(String user, UserBalance balance) {
-        var table = userTableName(user, USER_BALANCE_TABLE);
-        try (PreparedStatement stmt  = connection().prepareStatement(
+        var table = userTableName(user, "_USER_BALANCE_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "INSERT INTO " + table + " (_ID, _USER, _BALANCE, _TRADING_DAY, _TIME) " +
                 "VALUES (?,?,?,?,?)")) {
             stmt.setString(1, balance.getId());
@@ -549,8 +549,8 @@ public abstract class JdbcUserPersistence implements UserPersistence {
     }
 
     private void updateUserBalance(String user, UserBalance balance) {
-        var table = userTableName(user, USER_BALANCE_TABLE);
-        try (PreparedStatement stmt  = connection().prepareStatement(
+        var table = userTableName(user, "_USER_BALANCE_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "UPDATE " + table + " SET _BALANCE = ?,_TRADING_DAY = ?, _TIME = ? " +
                 "WHERE _ID = ? AND _USER = ?")) {
             stmt.setDouble(1, balance.getBalance());
@@ -568,8 +568,8 @@ public abstract class JdbcUserPersistence implements UserPersistence {
     }
 
     private void deleteUserBalance(String user, UserBalance balance) {
-        var table = userTableName(user, USER_BALANCE_TABLE);
-        try (PreparedStatement stmt  = connection().prepareStatement(
+        var table = userTableName(user, "_USER_BALANCE_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "DELETE FROM " + table + " WHERE _ID = ? AND _USER = ?")) {
             stmt.setString(1, balance.getId());
             stmt.setString(2, balance.getUser());
@@ -584,7 +584,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
 
     private String ensureUserBalance(String user) {
         try {
-            var table = userTableName(user, USER_BALANCE_TABLE);
+            var table = userTableName(user, "_USER_BALANCE_TABLE");
             if (tableExists("%", table)) {
                 return table;
             }
@@ -597,27 +597,259 @@ public abstract class JdbcUserPersistence implements UserPersistence {
     }
 
     private String userTableName(String user, String table) {
-        return "_" + user + table;
+        // Need remove all non alphabetic or non numeric characters.
+        return "_" + user.replaceAll("[^a-zA-Z0-9]", "").toUpperCase() + table;
     }
+
 
     @Override
     public Collection<UserPosition> getUserPositions(String user) {
-        return null;
+        var table = ensureUserPosition(user);
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "SELECT * FROM " + table + " WHERE _USER = ?")) {
+            stmt.setString(1, user);
+            var rs = stmt.executeQuery();
+            var r = new HashSet<UserPosition>();
+            while (rs.next()) {
+                r.add(buildUserPosition(rs));
+            }
+            return r;
+        } catch (SQLException error) {
+            throw new Error("Failed querying user positions for " + user + ". "
+                            + error.getMessage(), error);
+        }
+    }
+
+    private UserPosition buildUserPosition(ResultSet rs) throws SQLException {
+        var p = new UserPosition();
+        p.setId(rs.getString("_ID"));
+        p.setUser(rs.getString("_USER"));
+        p.setSymbol(rs.getString("_SYMBOL"));
+        p.setExchange(rs.getString("_EXCHANGE"));
+        p.setPrice(rs.getDouble("_PRICE"));
+        p.setMultiple((long) rs.getInt("_MULTIPLE"));
+        p.setMargin(rs.getDouble("_MARGIN"));
+        p.setDirection(rs.getString("_DIRECTION").charAt(0));
+        p.setOpenTradingDay(rs.getString("_OPEN_TRADING_DAY"));
+        p.setOpenTime(rs.getString("_OPEN_TIME"));
+        p.setState(rs.getString("_STATE").charAt(0));
+        return p;
     }
 
     @Override
     public void alterUserPosition(String user, UserPosition position, Character alter) {
+        ensureUserPosition(user);
+        if (Objects.equals(alter, ALTER_ADD)) {
+            addUserPosition(user, position);
+        } else if (Objects.equals(alter, ALTER_UPDATE)) {
+            updateUserPosition(user, position);
+        } else if (Objects.equals(alter, ALTER_DELETE)) {
+            deleteUserPosition(user, position);
+        } else {
+            throw new Error("Unsupported data operation: " + alter + ".");
+        }
+    }
 
+    private void addUserPosition(String user, UserPosition position) {
+        var table = userTableName(user, "_USER_POSITION_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "INSERT INTO " + table + " (_ID, _USER, _SYMBOL, _EXCHANGE, _PRICE, " +
+                "_MULTIPLE, _MARGIN, _DIRECTION, _OPEN_TRADING_DAY, _OPEN_TIME, " +
+                "_STATE) VALUES (?,?,?,?,?,?,?,?,?,?,?)")) {
+            stmt.setString(1, position.getId());
+            stmt.setString(2, position.getUser());
+            stmt.setString(3, position.getSymbol());
+            stmt.setString(4, position.getExchange());
+            stmt.setDouble(5, position.getPrice());
+            stmt.setInt(6, position.getMultiple().intValue());
+            stmt.setDouble(7, position.getMargin());
+            stmt.setString(8, String.valueOf(position.getDirection()));
+            stmt.setString(9, position.getOpenTradingDay());
+            stmt.setString(10, position.getOpenTime());
+            stmt.setString(11, String.valueOf(position.getState()));
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed adding user position for " + user + ". ");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed adding user position for " + user + ". "
+                            + error.getMessage(), error);
+        }
+    }
+
+    private void updateUserPosition(String user, UserPosition position) {
+        var table = userTableName(user, "_USER_POSITION_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "UPDATE " + table + " SET _SYMBOL = ?, _EXCHANGE = ?, _PRICE = ?, " +
+                "_MULTIPLE = ?, _MARGIN = ?, _DIRECTION = ?, _OPEN_TRADING_DAY = ?," +
+                " _OPEN_TIME = ?, _STATE = ? WHERE _ID = ? AND _USER = ?")) {
+            stmt.setString(1, position.getSymbol());
+            stmt.setString(2, position.getExchange());
+            stmt.setDouble(3, position.getPrice());
+            stmt.setInt(4, position.getMultiple().intValue());
+            stmt.setDouble(5, position.getMargin());
+            stmt.setString(6, String.valueOf(position.getDirection()));
+            stmt.setString(7, position.getOpenTradingDay());
+            stmt.setString(8, position.getOpenTime());
+            stmt.setString(9, String.valueOf(position.getState()));
+            stmt.setString(10, position.getId());
+            stmt.setString(11, position.getUser());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed updating user position for " + user + ". ");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed updating user position for " + user + ". "
+                            + error.getMessage(), error);
+        }
+    }
+
+    private void deleteUserPosition(String user, UserPosition position) {
+        var table = userTableName(user, "_USER_POSITION_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "DELETE FROM " + table + " WHERE _ID = ? AND _USER = ?")) {
+            stmt.setString(1, position.getId());
+            stmt.setString(2, position.getUser());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed deleting user position for " + user + ". ");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed deleting user position for " + user + ". "
+                            + error.getMessage(), error);
+        }
+    }
+
+    private String ensureUserPosition(String user) {
+        try {
+            var table = userTableName(user, "_USER_POSITION_TABLE");
+            if (tableExists("%", table)) {
+                return table;
+            }
+            createTable("CREATE TABLE " + table + " (_ID CHAR(128), _USER CHAR(128), " +
+                        "_SYMBOL CHAR(128), _EXCHANGE CHAR(32), _PRICE DOUBLE, _MULTIPLE INT," +
+                        " _MARGIN DOUBLE, _DIRECTION CHAR(1), _OPEN_TRADING_DAY CHAR(8)," +
+                        " _OPEN_TIME CHAR(32), _STATE CHAR(1))");
+            return table;
+        } catch (SQLException error) {
+            throw new Error("Failed ensuring user position table. " + error.getMessage(), error);
+        }
     }
 
     @Override
     public Collection<UserCash> getUserCashes(String user) {
-        return null;
+        var table = ensureUserCash(user);
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "SELECT * FROM " + table + " WHERE _USER = ?")) {
+            stmt.setString(1, user);
+            var rs = stmt.executeQuery();
+            var r = new HashSet<UserCash>();
+            while (rs.next()) {
+                r.add(buildUserCash(rs));
+            }
+            return r;
+        } catch (SQLException error) {
+            throw new Error("Failed querying user cash for " + user + ". " +
+                            error.getMessage(), error);
+        }
+    }
+
+    private UserCash buildUserCash(ResultSet rs) throws SQLException {
+        var c = new UserCash();
+        c.setId(rs.getString("_ID"));
+        c.setUser(rs.getString("_USER"));
+        c.setCash(rs.getDouble("_CASH"));
+        c.setSource(rs.getString("_SOURCE").charAt(0));
+        c.setTradingDay(rs.getString("_TRADING_DAY"));
+        c.setTime(rs.getString("_TIME"));
+        return c;
     }
 
     @Override
     public void alterUserCash(String user, UserCash cash, Character alter) {
+        ensureUserCash(user);
+        if (Objects.equals(alter, ALTER_ADD)) {
+            addUserCash(user, cash);
+        } else if (Objects.equals(alter, ALTER_UPDATE)) {
+            updateUserCash(user, cash);
+        } else if (Objects.equals(alter, ALTER_DELETE)) {
+            deleteUserCash(user, cash);
+        } else {
+            throw new Error("Unsupported data operation: " + alter + ".");
+        }
+    }
 
+    private void addUserCash(String user, UserCash cash) {
+        var table = userTableName(user, "_USER_CASH_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "INSERT INTO " + table + " (_ID, _USER, _CASH, _SOURCE, _TRADING_DAY, _TIME)" +
+                " VALUES (?,?,?,?,?,?)")) {
+            stmt.setString(1, cash.getId());
+            stmt.setString(2, cash.getUser());
+            stmt.setDouble(3, cash.getCash());
+            stmt.setString(4, String.valueOf(cash.getSource()));
+            stmt.setString(5, cash.getTradingDay());
+            stmt.setString(6, cash.getTime());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed adding user cash for " + user + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed adding user cash for " + user + ". " +
+                            error.getMessage(), error);
+        }
+    }
+
+    private void updateUserCash(String user, UserCash cash) {
+        var table = userTableName(user, "_USER_CASH_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "UPDATE " + table + " SET _CASH = ?, _SOURCE = ?, _TRADING_DAY = ?, " +
+                "_TIME = ? WHERE _ID = ? AND _USER = ?")) {
+            stmt.setDouble(1, cash.getCash());
+            stmt.setString(2, String.valueOf(cash.getSource()));
+            stmt.setString(3, cash.getTradingDay());
+            stmt.setString(4, cash.getTime());
+            stmt.setString(5, cash.getId());
+            stmt.setString(6, cash.getUser());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed updating user cash for " + user + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed updating user cash for " + user + ". " +
+                            error.getMessage(), error);
+        }
+    }
+
+    private void deleteUserCash(String user, UserCash cash) {
+        var table = userTableName(user, "_USER_CASH_TABLE");
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "DELETE FROM " + table + " WHERE _ID = ? AND _USER = ?")) {
+            stmt.setString(1, cash.getId());
+            stmt.setString(2, cash.getUser());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed deleting user cash for " + user + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed updating user cash for " + user + ". " +
+                            error.getMessage(), error);
+        }
+    }
+
+    private String ensureUserCash(String user) {
+        try {
+            var table = userTableName(user, "_USER_CASH_TABLE");
+            if (tableExists("%", table)) {
+                return table;
+            }
+            createTable("CREATE TABLE " + table + " (_ID CHAR(128), _USER CHAR(128), " +
+                        "_CASH DOUBLE, _SOURCE CHAR(1), _TRADING_DAY CHAR(8)," +
+                        " _TIME CHAR(32))");
+            return table;
+        } catch (SQLException error) {
+            throw new Error("Failed ensuring user position table. " + error.getMessage(), error);
+        }
     }
 
     @Override
