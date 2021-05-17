@@ -17,43 +17,37 @@
 
 package org.tikware.user;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.Objects;
 
-public class JdbcUserPersistence implements UserPersistence {
-    private static final String db = "~/tikware";
+public abstract class JdbcUserPersistence implements UserPersistence {
     private static final DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyyMMdd HH:mm:ss.SSS");
-    private Connection connection;
+    private Connection dbc;
 
-    protected Connection connect() {
+    /**
+     * Provide connection to custom data source.
+     * @return {@link Connection}
+     */
+    public abstract Connection connect();
+
+    protected Connection connection() {
         try {
-            if (connection == null || !connection.isValid(1)) {
-                connection = DriverManager.getConnection("jdbc:h2:" + db, "sa", "");
+            if (dbc == null || !dbc.isValid(1)) {
+                dbc = connect();
             }
-            return connection;
-        } catch (SQLException throwable) {
-            throw new Error("Failed connecting database. " + throwable.getMessage(), throwable);
-        }
-    }
-
-    public static void clearDb() {
-        try {
-            Files.delete(Paths.get(db));
-        } catch (IOException ignored) {
+            return dbc;
+        } catch (SQLException error) {
+            throw new Error("Failed validating database connection. " + error.getMessage(), error);
         }
     }
 
     @Override
     public String getTradingDay() {
         ensureTradingDay();
-        try (Statement stmt = connect().createStatement()) {
+        try (Statement stmt = connection().createStatement()) {
             var rs = stmt.executeQuery("SELECT _TRADING_DAY FROM _TRADING_DAY_TABLE ORDER BY _TIME DESC LIMIT 1");
             if (rs.next()) {
                 var day = rs.getString("_TRADING_DAY");
@@ -75,7 +69,7 @@ public class JdbcUserPersistence implements UserPersistence {
     @Override
     public Double getPrice(String symbol) {
         ensurePrice();
-        try (PreparedStatement stmt = connect().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "SELECT _PRICE FROM _PRICE_TABLE WHERE _SYMBOL=? ORDER BY _TIME DESC LIMIT 1")) {
             stmt.setString(1, symbol);
             var rs = stmt.executeQuery();
@@ -94,7 +88,7 @@ public class JdbcUserPersistence implements UserPersistence {
     @Override
     public Long getMultiple(String symbol) {
         ensureMultiple();
-        try (PreparedStatement stmt = connect().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "SELECT _MULTIPLE FROM _MULTIPLE_TABLE WHERE _SYMBOL = ? ORDER BY _TIME DESC LIMIT 1")) {
             stmt.setString(1, symbol);
             var rs = stmt.executeQuery();
@@ -143,7 +137,7 @@ public class JdbcUserPersistence implements UserPersistence {
 
     private ResultSet getMarginRatio(String symbol, Character direction, Character offset) {
         try {
-            PreparedStatement stmt = connect().prepareStatement(
+            PreparedStatement stmt = connection().prepareStatement(
                     "SELECT _RATIO, _TYPE FROM _MARGIN_TABLE WHERE _SYMBOL = ? AND _DIRECTION = ?" +
                     " AND _OFFSET = ?");
             stmt.setString(1, symbol);
@@ -212,7 +206,7 @@ public class JdbcUserPersistence implements UserPersistence {
 
     private ResultSet getCommissionRatio(String symbol, Character direction, Character offset) {
         try {
-            PreparedStatement stmt = connect().prepareStatement(
+            PreparedStatement stmt = connection().prepareStatement(
                     "SELECT _RATIO, _TYPE FROM _COMMISSION_TABLE WHERE _SYMBOL = ? AND _DIRECTION = ?" +
                     " AND _OFFSET = ?");
             stmt.setString(1, symbol);
@@ -267,13 +261,13 @@ public class JdbcUserPersistence implements UserPersistence {
     }
 
     private boolean tableExists(String schema, String table) throws SQLException {
-        var meta = connect().getMetaData();
+        var meta = connection().getMetaData();
         var t = meta.getTables(null, schema, table, new String[]{"TABLE"});
         return t.next();
     }
 
     private void createTable(String sql) throws SQLException {
-        try (Statement stmt = connect().createStatement()) {
+        try (Statement stmt = connection().createStatement()) {
             stmt.execute(sql);
         }
     }
@@ -281,7 +275,7 @@ public class JdbcUserPersistence implements UserPersistence {
     @Override
     public void addTradingDay(String tradingDay) {
         ensureTradingDay();
-        try (PreparedStatement stmt = connect().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "INSERT INTO _TRADING_DAY_TABLE(_TIME, _TRADING_DAY) VALUES (?, ?)")) {
             stmt.setString(1, getDateTime());
             stmt.setString(2, tradingDay);
@@ -307,7 +301,7 @@ public class JdbcUserPersistence implements UserPersistence {
     }
 
     private void addPrice(String symbol, Double price) {
-        try (PreparedStatement stmt = connect().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "INSERT INTO _PRICE_TABLE (_TIME, _SYMBOL, _PRICE) VALUES (?,?,?)")) {
             stmt.setString(1, getDateTime());
             stmt.setString(2, symbol);
@@ -323,7 +317,7 @@ public class JdbcUserPersistence implements UserPersistence {
     }
 
     private void updatePrice(String symbol, Double price) {
-        try (PreparedStatement stmt = connect().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "UPDATE _PRICE_TABLE SET _PRICE = ? WHERE _SYMBOL = ?")) {
             stmt.setDouble(1, price);
             stmt.setString(2, symbol);
@@ -348,7 +342,7 @@ public class JdbcUserPersistence implements UserPersistence {
     }
 
     private void addMultiple(String symbol, Long multiple) {
-        try (PreparedStatement stmt = connect().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "INSERT INTO _MULTIPLE_TABLE (_TIME, _SYMBOL, _MULTIPLE) VALUES (?,?,?)")) {
             stmt.setString(1, getDateTime());
             stmt.setString(2, symbol);
@@ -364,7 +358,7 @@ public class JdbcUserPersistence implements UserPersistence {
     }
 
     private void updateMultiple(String symbol, Long multiple) {
-        try (PreparedStatement stmt = connect().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "UPDATE _MULTIPLE_TABLE SET _MULTIPLE = ? WHERE _SYMBOL = ?")) {
             stmt.setInt(1, multiple.intValue());
             stmt.setString(2, symbol);
@@ -395,7 +389,7 @@ public class JdbcUserPersistence implements UserPersistence {
 
     private void addMarginRatio(String symbol, Double ratio, Character direction,
             Character offset, Character type) {
-        try (PreparedStatement stmt = connect().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "INSERT INTO _MARGIN_TABLE (_TIME, _SYMBOL, _RATIO, _DIRECTION, _OFFSET, _TYPE) " +
                 "VALUES (?,?,?,?,?,?)")) {
             stmt.setString(1, getDateTime());
@@ -416,7 +410,7 @@ public class JdbcUserPersistence implements UserPersistence {
 
     private void updateMarginRatio(String symbol, Double ratio, Character direction,
             Character offset, Character type) {
-        try (PreparedStatement stmt = connect().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "UPDATE _MARGIN_TABLE SET _RATIO = ?, _TIME = ?, _TYPE = ? " +
                 "WHERE _SYMBOL = ? AND _DIRECTION = ? AND _OFFSET = ?")) {
             stmt.setDouble(1, ratio);
@@ -452,7 +446,7 @@ public class JdbcUserPersistence implements UserPersistence {
 
     private void addCommissionRatio(String symbol, Double ratio, Character direction,
             Character offset, Character type) {
-        try (PreparedStatement stmt = connect().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "INSERT INTO _COMMISSION_TABLE (_TIME, _SYMBOL, _RATIO, _DIRECTION, _OFFSET, _TYPE) " +
                 "VALUES (?,?,?,?,?,?)")) {
             stmt.setString(1, getDateTime());
@@ -473,7 +467,7 @@ public class JdbcUserPersistence implements UserPersistence {
 
     private void updateCommissionRatio(String symbol, Double ratio, Character direction,
             Character offset, Character type) {
-        try (PreparedStatement stmt = connect().prepareStatement(
+        try (PreparedStatement stmt = connection().prepareStatement(
                 "UPDATE _COMMISSION_TABLE SET _RATIO = ?, _TIME = ?, _TYPE = ? " +
                 "WHERE _SYMBOL = ? AND _DIRECTION = ? AND _OFFSET = ?")) {
             stmt.setDouble(1, ratio);
@@ -494,12 +488,116 @@ public class JdbcUserPersistence implements UserPersistence {
 
     @Override
     public UserBalance getUserBalance(String user) {
-        return null;
+        var table = ensureUserBalance(user);
+        try (PreparedStatement stmt  = connection().prepareStatement(
+                "SELECT * FROM " + table + " WHERE _USER = ?")) {
+            stmt.setString(1, user);
+            var rs = stmt.executeQuery();
+            if (rs.next()) {
+                return buildUserBalance(rs);
+            } else {
+                return null;
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed query user balance for " + user + ". " + error.getMessage(), error);
+        }
+    }
+
+    private UserBalance buildUserBalance(ResultSet rs) throws SQLException {
+        var b = new UserBalance();
+        b.setId(rs.getString("_ID"));
+        b.setUser(rs.getString("_USER"));
+        b.setBalance(rs.getDouble("_BALANCE"));
+        b.setTradingDay(rs.getString("_TRADING_DAY"));
+        b.setTime(rs.getString("_TIME"));
+        return b;
     }
 
     @Override
     public void alterUserBalance(String user, UserBalance balance, Character alter) {
+        var b = getUserBalance(user);
+        if (Objects.equals(alter, ALTER_ADD)) {
+            addUserBalance(user, balance);
+        } else if (Objects.equals(alter, ALTER_UPDATE)) {
+            updateUserBalance(user, balance);
+        } else if (Objects.equals(alter, ALTER_DELETE)) {
+            deleteUserBalance(user, balance);
+        } else {
+            throw new Error("Unsupported data operation: " + alter + ".");
+        }
+    }
 
+    private final static String USER_BALANCE_TABLE = "_USER_BALANCE_TABLE";
+
+    private void addUserBalance(String user, UserBalance balance) {
+        var table = userTableName(user, USER_BALANCE_TABLE);
+        try (PreparedStatement stmt  = connection().prepareStatement(
+                "INSERT INTO " + table + " (_ID, _USER, _BALANCE, _TRADING_DAY, _TIME) " +
+                "VALUES (?,?,?,?,?)")) {
+            stmt.setString(1, balance.getId());
+            stmt.setString(2, balance.getUser());
+            stmt.setDouble(3, balance.getBalance());
+            stmt.setString(4, balance.getTradingDay());
+            stmt.setString(5, balance.getTime());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed adding user balance for " + user + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed adding user balance for " + user + ".", error);
+        }
+    }
+
+    private void updateUserBalance(String user, UserBalance balance) {
+        var table = userTableName(user, USER_BALANCE_TABLE);
+        try (PreparedStatement stmt  = connection().prepareStatement(
+                "UPDATE " + table + " SET _BALANCE = ?,_TRADING_DAY = ?, _TIME = ? " +
+                "WHERE _ID = ? AND _USER = ?")) {
+            stmt.setDouble(1, balance.getBalance());
+            stmt.setString(2, balance.getTradingDay());
+            stmt.setString(3, balance.getTime());
+            stmt.setString(4, balance.getId());
+            stmt.setString(5, balance.getUser());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed updating user balance for " + user + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed updating user balance for " + user + ".", error);
+        }
+    }
+
+    private void deleteUserBalance(String user, UserBalance balance) {
+        var table = userTableName(user, USER_BALANCE_TABLE);
+        try (PreparedStatement stmt  = connection().prepareStatement(
+                "DELETE FROM " + table + " WHERE _ID = ? AND _USER = ?")) {
+            stmt.setString(1, balance.getId());
+            stmt.setString(2, balance.getUser());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new Error("Failed deleting user balance for " + user + ".");
+            }
+        } catch (SQLException error) {
+            throw new Error("Failed deleting user balance for " + user + ".", error);
+        }
+    }
+
+    private String ensureUserBalance(String user) {
+        try {
+            var table = userTableName(user, USER_BALANCE_TABLE);
+            if (tableExists("%", table)) {
+                return table;
+            }
+            createTable("CREATE TABLE " + table + " (_ID CHAR(128), _USER CHAR(128), " +
+                        "_BALANCE DOUBLE, _TRADING_DAY CHAR(8), _TIME CHAR(32))");
+            return table;
+        } catch (SQLException error) {
+            throw new Error("Failed ensuring user balance table. " + error.getMessage(), error);
+        }
+    }
+
+    private String userTableName(String user, String table) {
+        return "_" + user + table;
     }
 
     @Override

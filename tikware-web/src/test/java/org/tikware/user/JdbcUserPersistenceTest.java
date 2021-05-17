@@ -25,11 +25,14 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class JdbcUserPersistenceTest {
 
+    private final String dir = "~/tikware/database/";
+    private final String db = "h2";
+
     @Test
     public void getTradingDay() {
-        JdbcUserPersistence.clearDb();
         var x = "20210518";
-        var c = new JdbcUserPersistence();
+        var c = new H2Persistence(dir, db);
+        c.clearDb();
         // First query empty table.
         var day = c.getTradingDay();
         if (day.isBlank() || !c.equals(x)) {
@@ -43,10 +46,10 @@ public class JdbcUserPersistenceTest {
 
     @Test
     void getPrice() {
-        JdbcUserPersistence.clearDb();
         var p = 1335.58D;
         var i = "c2109";
-        var c = new JdbcUserPersistence();
+        var c = new H2Persistence(dir, db);
+        c.clearDb();
         // First query empty table.
         var price = c.getPrice(i);
         if (price.isNaN() || price != p) {
@@ -60,10 +63,10 @@ public class JdbcUserPersistenceTest {
 
     @Test
     void getMultiple() {
-        JdbcUserPersistence.clearDb();
         var m = 10L;
         var i = "c2111";
-        var c = new JdbcUserPersistence();
+        var c = new H2Persistence(dir, db);
+        c.clearDb();
         // First query empty table.
         var multi = c.getMultiple(i);
         if (multi == null || multi != m) {
@@ -77,10 +80,10 @@ public class JdbcUserPersistenceTest {
 
     @Test
     void getMargin() {
-        JdbcUserPersistence.clearDb();
         var symbol = "c2111";
         var ratio = .12D;
-        var c = new JdbcUserPersistence();
+        var c = new H2Persistence(dir, db);
+        c.clearDb();
         var margin = c.getMargin(symbol, 1234.0D, UserPosition.LONG, Order.OPEN);
         if (margin.isNaN()) {
             // Add margin.
@@ -95,10 +98,10 @@ public class JdbcUserPersistenceTest {
 
     @Test
     void getCommission() {
-        JdbcUserPersistence.clearDb();
         var symbol = "c2111";
         var ratio = 1.2D;
-        var c = new JdbcUserPersistence();
+        var c = new H2Persistence(dir, db);
+        c.clearDb();
         var commission = c.getCommission(symbol, 1234.0D, UserPosition.SHORT, Order.CLOSE);
         if (commission.isNaN()) {
             // Add margin.
