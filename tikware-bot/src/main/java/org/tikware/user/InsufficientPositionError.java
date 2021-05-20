@@ -17,8 +17,8 @@
 
 package org.tikware.user;
 
-public class IllegalRatioTypeException extends RuntimeException {
-    public IllegalRatioTypeException(String s) {
-        super(s);
+public class InsufficientPositionError extends TikwareError {
+    public InsufficientPositionError(String message) {
+        super(0x100A, message);
     }
 }

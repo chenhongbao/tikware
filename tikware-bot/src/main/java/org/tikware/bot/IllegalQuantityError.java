@@ -17,8 +17,10 @@
 
 package org.tikware.bot;
 
-public class IllegalSymbolException extends RuntimeException {
-    public IllegalSymbolException(String s) {
-        super(s);
+import org.tikware.user.TikwareError;
+
+public class IllegalQuantityError extends TikwareError {
+    public IllegalQuantityError(String message) {
+        super(0x1002, message);
     }
 }

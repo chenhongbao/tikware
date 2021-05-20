@@ -17,8 +17,8 @@
 
 package org.tikware.user;
 
-public class CommissionNotFoundException extends RuntimeException{
-    public CommissionNotFoundException(String message) {
-        super(message);
+public class IllegalDirectionError extends TikwareError{
+    public IllegalDirectionError(String message) {
+        super(0x1006, message);
     }
 }

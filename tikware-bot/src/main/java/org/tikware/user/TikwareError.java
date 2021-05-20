@@ -17,8 +17,19 @@
 
 package org.tikware.user;
 
-public class WrongUserException extends RuntimeException {
-    public WrongUserException(String s) {
-        super(s);
+public class TikwareError extends RuntimeException{
+    private final int code;
+    public TikwareError(int code, String message) {
+        super(message);
+        this.code = code;
+    }
+
+    public TikwareError(int code, String message, Throwable cause) {
+        super(message, cause);
+        this.code = code;
+    }
+
+    public int getCode() {
+        return code;
     }
 }

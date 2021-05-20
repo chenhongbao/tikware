@@ -17,8 +17,8 @@
 
 package org.tikware.user;
 
-public class InsufficientPositionException extends Exception {
-    public InsufficientPositionException(String message) {
-        super(message);
+public class InvalidPositionStateError extends TikwareError {
+    public InvalidPositionStateError(String message) {
+        super(0x100B, message);
     }
 }

@@ -17,8 +17,8 @@
 
 package org.tikware.user;
 
-public class InsufficientAvailableException extends Throwable {
-    public InsufficientAvailableException(String s) {
-        super(s);
+public class DataConnectionError extends TikwareError {
+    public DataConnectionError(String message, Throwable cause) {
+        super(0x2001, message, cause);
     }
 }

@@ -15,10 +15,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.api;
+package org.tikware.user;
 
-public class IllegalDirectionException extends RuntimeException{
-    public IllegalDirectionException(String message) {
-        super(message);
+public class UnsupportedAlterError extends TikwareError {
+    public UnsupportedAlterError(String message, Throwable cause) {
+        super(0x2006, message, cause);
     }
 }

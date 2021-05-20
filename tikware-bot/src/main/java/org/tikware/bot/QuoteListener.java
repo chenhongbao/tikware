@@ -39,7 +39,7 @@ public abstract class QuoteListener implements OrderListener {
     @Override
     public void onTrade(Trade trade) {
         if (infos.size() < trade.getQuantity()) {
-            onError(new QuoteInfoUnderflowException(
+            onError(new QuoteInfoUnderflowError(
                     "Information needs " + trade.getQuantity() + " elements at least."));
             return;
         }

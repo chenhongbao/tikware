@@ -15,10 +15,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.bot;
+package org.tikware.user;
 
-public class IllegalQuantityException extends Exception{
-    public IllegalQuantityException(String message) {
-        super(message);
+public class DataUpdateError extends TikwareError {
+    public DataUpdateError(String message, Throwable cause) {
+        super(0x2004, message, cause);
     }
 }

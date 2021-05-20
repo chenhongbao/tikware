@@ -17,8 +17,8 @@
 
 package org.tikware.user;
 
-public class MultipleNotFoundException extends RuntimeException {
-    public MultipleNotFoundException(String s) {
-        super(s);
+public class DataInsertionError extends TikwareError{
+    public DataInsertionError(String message, Throwable cause) {
+        super(0x2003, message, cause);
     }
 }

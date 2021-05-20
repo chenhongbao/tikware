@@ -17,8 +17,8 @@
 
 package org.tikware.user;
 
-public class IllegalMarginException extends Exception {
-    public IllegalMarginException(String message) {
-        super(message);
+public class TableCreationError extends TikwareError {
+    public TableCreationError(String message, Throwable cause) {
+        super(0x2003, message, cause);
     }
 }

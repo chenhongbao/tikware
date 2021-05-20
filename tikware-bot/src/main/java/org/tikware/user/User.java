@@ -17,7 +17,6 @@
 
 package org.tikware.user;
 
-import org.tikware.api.IllegalDirectionException;
 import org.tikware.api.Order;
 
 import java.util.*;
@@ -56,7 +55,7 @@ public class User {
         } else if (Objects.equals(direction, UserPosition.SHORT)) {
             profit = (openPrice - currentPrice) * mul;
         } else {
-            throw new IllegalStateException("Invalid position direction: " + direction + ".");
+            throw new IllegalDirectionError(direction.toString());
         }
         return profit;
     }
@@ -121,7 +120,7 @@ public class User {
             // Remove position from database.
             persistence.alterUserPosition(balance.getUser(), p, UserPersistence.ALTER_DELETE);
         } else {
-            throw new PositionNotFoundException("Fail undo open position: " + positionId + ".");
+            throw new PositionNotFoundError(positionId);
         }
     }
 
@@ -139,7 +138,7 @@ public class User {
             // Remove commission from database.
             persistence.alterUserCommission(balance.getUser(), c, UserPersistence.ALTER_DELETE);
         } else {
-            throw new CommissionNotFoundException("Fail undo open commission: " + commissionId + ".");
+            throw new CommissionNotFoundError(commissionId);
         }
     }
 
@@ -166,7 +165,7 @@ public class User {
     }
 
     public CloseInfo freezeClose(String user, String symbol, Character direction, Double price)
-            throws IllegalCommissionException {
+            throws IllegalCommissionError {
         checkUser(user);
         var positionDirection = closeDirection(direction);
         var commission = persistence.getCommission(symbol, price, positionDirection,
@@ -189,7 +188,7 @@ public class User {
         } else if (Objects.equals(Order.SELL, direction)) {
             return UserPosition.LONG;
         } else {
-            throw new IllegalDirectionException("Illegal order direction: " + direction + ".");
+            throw new IllegalDirectionError(direction.toString());
         }
     }
 
@@ -201,8 +200,7 @@ public class User {
                                     position.getDirection() == direction)
                 .collect(Collectors.toCollection(LinkedList::new));
         if (p.isEmpty()) {
-            info.setError(new InsufficientPositionException(
-                    "Insufficient position: " + symbol + ", " + direction + "."));
+            info.setError(new InsufficientPositionError(symbol + "|" + direction.toString()));
         } else {
             var px = p.get(0);
             px.setState(UserPosition.FROZEN_CLOSE);
@@ -221,16 +219,16 @@ public class User {
 
     private void checkUser(String user) {
         if (!balance.getUser().equalsIgnoreCase(user)) {
-            throw new WrongUserException("Wrong user " + user + ", expect " + balance.getUser() + ".");
+            throw new WrongUserError(user + "|" + balance.getUser());
         }
     }
 
     private void closePosition(String user, String positionId, Double price) {
         var p = this.positions.get(positionId);
         if (p == null) {
-            throw new PositionNotFoundException("Position not found: " + positionId + ".");
+            throw new PositionNotFoundError(positionId);
         } else if (p.getState() != UserPosition.FROZEN_CLOSE) {
-            throw new InvalidPositionStateException("Invalid position state: " + p.getState() + ".");
+            throw new InvalidPositionStateError(p.getState().toString());
         } else {
             positions.values().remove(p);
             //Remove position from database.
@@ -251,7 +249,7 @@ public class User {
     }
 
     public OpenInfo freezeOpen(String user, String symbol, String exchange, Character direction,
-            Double price) throws IllegalMarginException, IllegalCommissionException {
+            Double price) throws IllegalMarginError, IllegalCommissionError {
         checkUser(user);
         var positionDirection = positionDirection(direction);
         var multiple = persistence.getMultiple(symbol);
@@ -281,28 +279,29 @@ public class User {
         } else if (Objects.equals(direction, Order.SELL)) {
             return UserPosition.SHORT;
         } else {
-            throw new IllegalDirectionException("Illegal order direction " + direction + ".");
+            throw new IllegalDirectionError(direction.toString());
         }
     }
 
     private Throwable checkAvailability(Double margin, Double commission) {
         var a = getAvailable();
-        if (a < margin + commission) {
-            return new InsufficientAvailableException("Insufficient available: " + a + ".");
+        var needed = margin + commission;
+        if (a < needed) {
+            return new InsufficientAvailableError(a + "|" + needed);
         } else {
             return null;
         }
     }
 
-    private void checkMargin(Double margin) throws IllegalMarginException {
+    private void checkMargin(Double margin) throws IllegalMarginError {
         if (margin < 0) {
-            throw new IllegalMarginException("Illegal margin: " + margin + ".");
+            throw new IllegalMarginError(margin.toString());
         }
     }
 
-    private void checkCommission(Double commission) throws IllegalCommissionException {
+    private void checkCommission(Double commission) throws IllegalCommissionError {
         if (commission < 0) {
-            throw new IllegalCommissionException("Illegal commission: " + commission + ".");
+            throw new IllegalCommissionError(commission.toString());
         }
     }
 
@@ -365,7 +364,7 @@ public class User {
     private UserCommission commission(String commissionId) {
         var c = this.commissions.get(commissionId);
         if (c == null) {
-            throw new CommissionNotFoundException("Commission not found: " + commissionId + ".");
+            throw new CommissionNotFoundError(commissionId);
         } else {
             return c;
         }
@@ -374,7 +373,7 @@ public class User {
     private void openPosition(String positionId, Double price) {
         var p = position(positionId);
         if (p.getState() != UserPosition.FROZEN_OPEN) {
-            throw new InvalidPositionStateException("Invalid position state: " + p.getState() + ".");
+            throw new InvalidPositionStateError(p.getState().toString());
         } else {
             var margin = persistence.getMargin(p.getSymbol(), price, p.getDirection(), Order.OPEN);
             p.setPrice(price);
@@ -389,7 +388,7 @@ public class User {
     private UserPosition position(String positionId) {
         var p = this.positions.get(positionId);
         if (p == null) {
-            throw new PositionNotFoundException("Position not found: " + positionId + ".");
+            throw new PositionNotFoundError(positionId);
         } else {
             return p;
         }

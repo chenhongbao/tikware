@@ -15,10 +15,12 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.user;
+package org.tikware.bot;
 
-public class InvalidPositionStateException extends RuntimeException {
-    public InvalidPositionStateException(String s) {
-        super(s);
+import org.tikware.user.TikwareError;
+
+public class QuoteInfoUnderflowError extends TikwareError {
+    public QuoteInfoUnderflowError(String message) {
+        super(0x1003, message);
     }
 }

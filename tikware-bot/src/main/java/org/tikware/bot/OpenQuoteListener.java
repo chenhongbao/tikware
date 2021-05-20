@@ -42,7 +42,7 @@ public class OpenQuoteListener extends QuoteListener {
                     info.getCommissionId(), trade.getPrice());
             child.onTrade(trade);
         } else {
-            onError(new IllegalOffsetException("Illegal trade offset: " + offset + "."));
+            onError(new IllegalOffsetError("Illegal trade offset: " + offset + "."));
         }
     }
 }

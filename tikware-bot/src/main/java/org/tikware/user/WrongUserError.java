@@ -17,8 +17,8 @@
 
 package org.tikware.user;
 
-public class IllegalCommissionException extends Exception {
-    public IllegalCommissionException(String message) {
-        super(message);
+public class WrongUserError extends TikwareError {
+    public WrongUserError(String message) {
+        super(0x100E, message);
     }
 }

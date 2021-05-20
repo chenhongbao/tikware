@@ -42,7 +42,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             }
             return dbc;
         } catch (SQLException error) {
-            throw new Error("Failed validating database connection. " + error.getMessage(), error);
+            throw new DataConnectionError(error.getMessage(), error);
         }
     }
 
@@ -59,7 +59,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                 return "";
             }
         } catch (SQLException error) {
-            throw new Error("Failed query trading day. " + error.getMessage(), error);
+            throw new DataQueryError("Trading day.", error);
         }
     }
 
@@ -83,7 +83,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                 return Double.NaN;
             }
         } catch (SQLException error) {
-            throw new Error("Failed query price for " + symbol + ". " + error.getMessage(), error);
+            throw new DataQueryError("Price.", error);
         }
     }
 
@@ -102,7 +102,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                 return null;
             }
         } catch (SQLException error) {
-            throw new Error("Failed query multiple for " + symbol + ". " + error.getMessage(), error);
+            throw new DataQueryError("Multiple.", error);
         }
     }
 
@@ -113,7 +113,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             }
             createTable("CREATE TABLE _MULTIPLE_TABLE (_TIME CHAR(32), _SYMBOL CHAR(128), _MULTIPLE INT)");
         } catch (SQLException error) {
-            throw new Error("Failed ensuring multiple table. " + error.getMessage(), error);
+            throw new TableCreationError("Multiple table.", error);
         }
 
     }
@@ -132,7 +132,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                 rs.close();
                 return margin;
             } catch (SQLException error) {
-                throw new Error("Failed calculating margin for " + symbol + ". " + error.getMessage(), error);
+                throw new DataQueryError("Margin.", error);
             }
         }
     }
@@ -153,24 +153,22 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                 return null;
             }
         } catch (SQLException error) {
-            throw new Error("Failed query margin for " + symbol + ", direction: "
-                            + direction + ", offset: " + offset + ". " + error.getMessage(),
-                    error);
+            throw new DataQueryError("Margin ratio.", error);
         }
     }
 
-    private Double calcRatioFee(String symbol, Double price, double ratio, char type) {
+    private Double calcRatioFee(String symbol, Double price, double ratio, Character type) {
         if (Objects.equals(type, RATIO_BY_AMOUNT)) {
             var m = getMultiple(symbol);
             if (m == null) {
-                throw new MultipleNotFoundException("Multiple not found for " + symbol + ".");
+                throw new MultipleNotFoundError(symbol);
             } else {
                 return price * m * ratio;
             }
         } else if (Objects.equals(type, RATIO_BY_VOLUME)) {
             return ratio;
         } else {
-            throw new IllegalRatioTypeException("Illegal ratio type: " + type + ".");
+            throw new IllegalRatioTypeError(type.toString());
         }
     }
 
@@ -182,7 +180,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             createTable("CREATE TABLE _MARGIN_TABLE (_TIME CHAR(32), _SYMBOL CHAR(128), " +
                         "_RATIO DOUBLE, _DIRECTION CHAR(1), _OFFSET CHAR(1), _TYPE CHAR(1))");
         } catch (SQLException error) {
-            throw new Error("Failed ensuring margin table. " + error.getMessage(), error);
+            throw new TableCreationError("Margin table.", error);
         }
 
     }
@@ -201,7 +199,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                 rs.close();
                 return commission;
             } catch (SQLException error) {
-                throw new Error("Failed calculating margin for " + symbol + ". " + error.getMessage(), error);
+                throw new DataQueryError(symbol, error);
             }
         }
     }
@@ -222,9 +220,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                 return null;
             }
         } catch (SQLException error) {
-            throw new Error("Failed query commission for " + symbol + ", direction: "
-                            + direction + ", offset: " + offset + ". " + error.getMessage(),
-                    error);
+            throw new DataQueryError("Commission ratio.", error);
         }
     }
 
@@ -236,7 +232,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             createTable("CREATE TABLE _COMMISSION_TABLE (_TIME CHAR(32), _SYMBOL CHAR(128), " +
                         "_RATIO DOUBLE, _DIRECTION CHAR(1), _OFFSET CHAR(1), _TYPE CHAR(1))");
         } catch (SQLException error) {
-            throw new Error("Failed ensuring commission table. " + error.getMessage(), error);
+            throw new TableCreationError("Commission table.", error);
         }
     }
 
@@ -247,7 +243,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             }
             createTable("CREATE TABLE _TRADING_DAY_TABLE (_TIME CHAR(32), _TRADING_DAY CHAR(8))");
         } catch (SQLException throwable) {
-            throw new Error("Failed ensuring trading day table. " + throwable.getMessage(), throwable);
+            throw new TableCreationError("Trading day table.", throwable);
         }
     }
 
@@ -258,7 +254,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             }
             createTable("CREATE TABLE _PRICE_TABLE (_TIME CHAR(32), _SYMBOL CHAR(128), _PRICE DOUBLE)");
         } catch (SQLException throwable) {
-            throw new Error("Failed ensuring price table." + throwable.getMessage(), throwable);
+            throw new TableCreationError("Price table.", throwable);
         }
     }
 
@@ -284,10 +280,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.execute();
             var c = stmt.getUpdateCount();
             if (c != 1) {
-                throw new Error("Failed adding trading day, affected " + c + " rows.");
+                throw new DataInsertionError("Trading day.", null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed adding or updating trading day. " + error.getMessage(), error);
+            throw new DataInsertionError("Trading day.", error);
         }
     }
 
@@ -310,11 +306,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setDouble(3, price);
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed adding price for " + symbol);
+                throw new DataInsertionError("Price|" + symbol, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed adding price for " + symbol + ". "
-                            + error.getMessage(), error);
+            throw new DataInsertionError("Price|" + symbol, error);
         }
     }
 
@@ -325,11 +320,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(2, symbol);
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed updating price for " + symbol);
+                throw new DataUpdateError("Price|" + symbol, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed updating price for " + symbol + ". "
-                            + error.getMessage(), error);
+            throw new DataUpdateError("Price|" + symbol, error);
         }
     }
 
@@ -351,11 +345,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setInt(3, multiple.intValue());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed adding multiple for " + symbol);
+                throw new DataInsertionError("Multiple|" + symbol, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed adding multiple for " + symbol + ". "
-                            + error.getMessage(), error);
+            throw new DataInsertionError("Multiple|" + symbol, error);
         }
     }
 
@@ -366,11 +359,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(2, symbol);
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed updating multiple for " + symbol);
+                throw new DataUpdateError("Multiple|" + symbol, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed updating multiple for " + symbol + ". "
-                            + error.getMessage(), error);
+            throw new DataUpdateError("Multiple|" + symbol, error);
         }
     }
 
@@ -402,11 +394,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(6, String.valueOf(type));
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed adding margin ratio for " + symbol + ".");
+                throw new DataInsertionError("Margin ratio|" + symbol, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed adding margin ratio for " + symbol + ". " +
-                            error.getMessage(), error);
+            throw new DataInsertionError("Margin ratio|" + symbol, error);
         }
     }
 
@@ -423,11 +414,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(6, String.valueOf(offset));
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed updating margin ratio for " + symbol + ".");
+                throw new DataUpdateError("Margin ratio|" + symbol, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed updating margin ratio for " + symbol + ". " +
-                            error.getMessage(), error);
+            throw new DataUpdateError("Margin ratio|" + symbol, error);
         }
     }
 
@@ -459,11 +449,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(6, String.valueOf(type));
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed adding commission ratio for " + symbol + ".");
+                throw new DataInsertionError("Commission ratio|" + symbol, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed adding commission ratio for " + symbol + ". " +
-                            error.getMessage(), error);
+            throw new DataInsertionError("Commission ratio|" + symbol, error);
         }
     }
 
@@ -480,11 +469,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(6, String.valueOf(offset));
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed updating commission ratio for " + symbol + ".");
+                throw new DataUpdateError("Commission ratio|" + symbol, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed updating commission ratio for " + symbol + ". " +
-                            error.getMessage(), error);
+            throw new DataUpdateError("Commission ratio|" + symbol, error);
         }
     }
 
@@ -501,7 +489,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                 return null;
             }
         } catch (SQLException error) {
-            throw new Error("Failed query user balance for " + user + ". " + error.getMessage(), error);
+            throw new DataQueryError("User balance|" + user, error);
         }
     }
 
@@ -525,7 +513,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
         } else if (Objects.equals(alter, ALTER_DELETE)) {
             deleteUserBalance(user, balance);
         } else {
-            throw new Error("Unsupported data operation: " + alter + ".");
+            throw new UnsupportedAlterError("User balance|" + user + "|" + alter.toString(), null);
         }
     }
 
@@ -541,10 +529,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(5, balance.getTime());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed adding user balance for " + user + ".");
+                throw new DataInsertionError("User balance|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed adding user balance for " + user + ".", error);
+            throw new DataInsertionError("User balance|" + user, error);
         }
     }
 
@@ -560,10 +548,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(5, balance.getUser());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed updating user balance for " + user + ".");
+                throw new DataUpdateError("User balance|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed updating user balance for " + user + ".", error);
+            throw new DataUpdateError("User balance|" + user, error);
         }
     }
 
@@ -575,10 +563,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(2, balance.getUser());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed deleting user balance for " + user + ".");
+                throw new DataRemovalError("User balance|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed deleting user balance for " + user + ".", error);
+            throw new DataRemovalError("User balance|" + user, error);
         }
     }
 
@@ -592,7 +580,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                         "_BALANCE DOUBLE, _TRADING_DAY CHAR(8), _TIME CHAR(32))");
             return table;
         } catch (SQLException error) {
-            throw new Error("Failed ensuring user balance table. " + error.getMessage(), error);
+            throw new TableCreationError("User balance table|" + user, error);
         }
     }
 
@@ -615,8 +603,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             }
             return r;
         } catch (SQLException error) {
-            throw new Error("Failed querying user positions for " + user + ". "
-                            + error.getMessage(), error);
+            throw new DataQueryError("User position|" + user, error);
         }
     }
 
@@ -646,7 +633,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
         } else if (Objects.equals(alter, ALTER_DELETE)) {
             deleteUserPosition(user, position);
         } else {
-            throw new Error("Unsupported data operation: " + alter + ".");
+            throw new UnsupportedAlterError("User position|" + user + "|" + alter.toString(), null);
         }
     }
 
@@ -669,11 +656,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(11, String.valueOf(position.getState()));
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed adding user position for " + user + ". ");
+                throw new DataInsertionError("User position|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed adding user position for " + user + ". "
-                            + error.getMessage(), error);
+            throw new DataInsertionError("User position|" + user, error);
         }
     }
 
@@ -696,11 +682,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(11, position.getUser());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed updating user position for " + user + ". ");
+                throw new DataUpdateError("User position|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed updating user position for " + user + ". "
-                            + error.getMessage(), error);
+            throw new DataUpdateError("User position|" + user, error);
         }
     }
 
@@ -712,11 +697,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(2, position.getUser());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed deleting user position for " + user + ". ");
+                throw new DataRemovalError("User position|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed deleting user position for " + user + ". "
-                            + error.getMessage(), error);
+            throw new DataRemovalError("User position|" + user, error);
         }
     }
 
@@ -732,7 +716,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                         " _OPEN_TIME CHAR(32), _STATE CHAR(1))");
             return table;
         } catch (SQLException error) {
-            throw new Error("Failed ensuring user position table. " + error.getMessage(), error);
+            throw new TableCreationError("User position table|" + user, error);
         }
     }
 
@@ -749,8 +733,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             }
             return r;
         } catch (SQLException error) {
-            throw new Error("Failed querying user cash for " + user + ". " +
-                            error.getMessage(), error);
+            throw new DataQueryError("User cash|" + user, error);
         }
     }
 
@@ -775,7 +758,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
         } else if (Objects.equals(alter, ALTER_DELETE)) {
             deleteUserCash(user, cash);
         } else {
-            throw new Error("Unsupported data operation: " + alter + ".");
+            throw new UnsupportedAlterError("User cash|" + user + "|" + alter.toString(), null);
         }
     }
 
@@ -792,11 +775,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(6, cash.getTime());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed adding user cash for " + user + ".");
+                throw new DataInsertionError("User cash|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed adding user cash for " + user + ". " +
-                            error.getMessage(), error);
+            throw new DataInsertionError("User cash|" + user, error);
         }
     }
 
@@ -813,11 +795,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(6, cash.getUser());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed updating user cash for " + user + ".");
+                throw new DataUpdateError("User cash|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed updating user cash for " + user + ". " +
-                            error.getMessage(), error);
+            throw new Error("User cash|" + user, error);
         }
     }
 
@@ -829,11 +810,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(2, cash.getUser());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed deleting user cash for " + user + ".");
+                throw new DataRemovalError("User cash|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed updating user cash for " + user + ". " +
-                            error.getMessage(), error);
+            throw new Error("User cash|" + user, error);
         }
     }
 
@@ -848,7 +828,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                         " _TIME CHAR(32))");
             return table;
         } catch (SQLException error) {
-            throw new Error("Failed ensuring user position table. " + error.getMessage(), error);
+            throw new TableCreationError("User cash table|" + user, error);
         }
     }
 
@@ -865,8 +845,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             }
             return r;
         } catch (SQLException error) {
-            throw new Error("Failed querying user commission for " + user + ". " +
-                            error.getMessage(), error);
+            throw new DataQueryError("User commission|" + user, error);
         }
     }
 
@@ -894,7 +873,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
         } else if (Objects.equals(alter, ALTER_DELETE)) {
             deleteUserCommission(user, commission);
         } else {
-            throw new Error("Unsupported data operation: " + alter + ".");
+            throw new UnsupportedAlterError("User commission|" + user + "|" + alter.toString(), null);
         }
     }
 
@@ -914,11 +893,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(9, String.valueOf(commission.getState()));
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed querying user commission for " + user + ".");
+                throw new DataInsertionError("User commission|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed querying user commission for " + user + ". " +
-                            error.getMessage(), error);
+            throw new DataInsertionError("User commission|" + user, error);
         }
     }
 
@@ -939,11 +917,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(9, commission.getUser());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed updating user commission for " + user + ".");
+                throw new DataUpdateError("User commission|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed updating user commission for " + user + ". " +
-                            error.getMessage(), error);
+            throw new DataUpdateError("User commission|" + user, error);
         }
     }
 
@@ -955,11 +932,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(2, commission.getUser());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed deleting user commission for " + user + ".");
+                throw new DataRemovalError("User commission|" + user, null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed deleting user commission for " + user + ". " +
-                            error.getMessage(), error);
+            throw new Error("User commission|" + user, error);
         }
     }
 
@@ -975,8 +951,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                         "_STATE CHAR(1))");
             return table;
         } catch (SQLException error) {
-            throw new Error("Failed ensuring user commission for " + user + ". " +
-                            error.getMessage(), error);
+            throw new TableCreationError("User commission|" + user, error);
         }
     }
 
@@ -991,7 +966,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             }
             return r;
         } catch (SQLException error) {
-            throw new Error("Failed querying user info. " + error.getMessage(), error);
+            throw new DataQueryError("User infos.", error);
         }
     }
 
@@ -1016,7 +991,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
         } else if (Objects.equals(alter, ALTER_DELETE)) {
             deleteUserInfo(user);
         } else {
-            throw new Error("Unsupported data operation: " + alter + ".");
+            throw new UnsupportedAlterError("User info|" + user.getUser() + "|" + alter.toString(), null);
         }
     }
 
@@ -1032,11 +1007,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(6, user.getJoinTime());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed adding user info for " + user.getUser() + ".");
+                throw new DataInsertionError("User info|" + user.getUser(), null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed adding user info for " + user.getUser() + ". " +
-                            error.getMessage(), error);
+            throw new DataInsertionError("User info|" + user.getUser(), error);
         }
     }
 
@@ -1052,11 +1026,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(6, user.getUser());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed updating user info for " + user.getUser() + ".");
+                throw new DataUpdateError("User info|" + user.getUser(), null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed updating user info for " + user.getUser() + ". " +
-                            error.getMessage(), error);
+            throw new DataUpdateError("User info|" + user.getUser(), error);
         }
     }
 
@@ -1067,11 +1040,10 @@ public abstract class JdbcUserPersistence implements UserPersistence {
             stmt.setString(2, user.getUser());
             stmt.execute();
             if (stmt.getUpdateCount() != 1) {
-                throw new Error("Failed deleting user info for " + user.getUser() + ".");
+                throw new DataRemovalError("User info|" + user.getUser(), null);
             }
         } catch (SQLException error) {
-            throw new Error("Failed deleting user info for " + user.getUser() + ". " +
-                            error.getMessage(), error);
+            throw new DataRemovalError("User info|" + user.getUser(), error);
         }
     }
 
@@ -1084,7 +1056,7 @@ public abstract class JdbcUserPersistence implements UserPersistence {
                         "_PASSWORD CHAR(128), _NICKNAME CHAR(128), _PRIVILEGE CHAR(1), " +
                         "_JOIN_TIME CHAR(32))");
         } catch (SQLException error) {
-            throw new Error("Failed ensuring user info. " + error.getMessage(), error);
+            throw new TableCreationError("User info.", error);
         }
     }
 }

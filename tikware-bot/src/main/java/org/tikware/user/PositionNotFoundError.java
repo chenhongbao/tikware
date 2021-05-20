@@ -15,10 +15,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.bot;
+package org.tikware.user;
 
-public class QuoteInfoUnderflowException extends Exception {
-    public QuoteInfoUnderflowException(String s) {
-        super(s);
+public class PositionNotFoundError extends TikwareError {
+    public PositionNotFoundError(String message) {
+        super(0x100D, message);
     }
 }

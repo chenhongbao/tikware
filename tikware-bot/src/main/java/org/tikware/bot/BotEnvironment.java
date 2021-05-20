@@ -48,7 +48,7 @@ public class BotEnvironment implements Environment {
             } else if (offset == Order.CLOSE) {
                 close(order, listener);
             } else {
-                throw new IllegalOffsetException("Illegal offset: " + offset + ".");
+                throw new IllegalOffsetError(order.getOffset().toString());
             }
         } catch (Throwable throwable) {
             try {
@@ -58,7 +58,7 @@ public class BotEnvironment implements Environment {
         }
     }
 
-    private void close(Order order, OrderListener listener) throws IllegalCommissionException {
+    private void close(Order order, OrderListener listener) throws IllegalCommissionError {
         List<CloseInfo> infos = freezeClose(order.getUser(),order.getSymbol(), order.getDirection(),
                 order.getPrice(), order.getQuantity());
         // Encountering error, all open infos are cleared and the error info is
@@ -66,7 +66,7 @@ public class BotEnvironment implements Environment {
         if (infos.size() == 1 && infos.get(0).getError() != null) {
             listener.onError(infos.get(0).getError());
         } else if (infos.isEmpty()) {
-            listener.onError(new IllegalQuantityException("Empty close quantity."));
+            listener.onError(new IllegalQuantityError("Empty frozen position."));
         } else {
             synchronized (transaction) {
                 transaction.quote(order, new CloseQuoteListener(user, listener, infos));
@@ -75,7 +75,7 @@ public class BotEnvironment implements Environment {
     }
 
     private List<CloseInfo> freezeClose(String u, String symbol, Character direction, Double price,
-            Long quantity) throws IllegalCommissionException {
+            Long quantity) throws IllegalCommissionError {
         var r = new LinkedList<CloseInfo>();
         var count = 0;
         while (count++ < quantity) {
@@ -91,8 +91,8 @@ public class BotEnvironment implements Environment {
         return r;
     }
 
-    private void open(Order order, OrderListener listener) throws IllegalMarginException,
-            IllegalCommissionException {
+    private void open(Order order, OrderListener listener) throws IllegalMarginError,
+            IllegalCommissionError {
         var infos = freezeOpen(order.getUser(), order.getSymbol(), order.getExchange(),
                 order.getDirection(), order.getPrice(), order.getQuantity());
         // Encountering error, all open infos are cleared and the error info is
@@ -100,7 +100,7 @@ public class BotEnvironment implements Environment {
         if (infos.size() == 1 && infos.get(0).getError() != null) {
             listener.onError(infos.get(0).getError());
         } else if (infos.isEmpty()) {
-            listener.onError(new IllegalQuantityException("Empty open quantity."));
+            listener.onError(new IllegalQuantityError("Empty open quantity."));
         } else {
             synchronized (transaction) {
                 transaction.quote(order, new OpenQuoteListener(user, listener, infos));
@@ -110,7 +110,7 @@ public class BotEnvironment implements Environment {
 
     private List<OpenInfo> freezeOpen(String u, String symbol, String exchange,
             Character direction, Double price, Long quantity)
-            throws IllegalMarginException, IllegalCommissionException {
+            throws IllegalMarginError, IllegalCommissionError {
         var r = new LinkedList<OpenInfo>();
         int count = 0;
         while (count++ < quantity) {
@@ -194,7 +194,7 @@ public class BotEnvironment implements Environment {
             p.setClosingVolume(p.getClosingVolume() + 1);
             p.setClosingMargin(p.getClosingMargin() + m);
         } else {
-            throw new IllegalPathStateException("Illegal position state: " + s + ".");
+            throw new IllegalPathStateException(s.toString());
         }
         p.setVolume(p.getVolume() + 1);
         p.setMargin(p.getMargin() + m);

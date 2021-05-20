@@ -15,10 +15,10 @@
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-package org.tikware.bot;
+package org.tikware.user;
 
-public class IllegalOffsetException extends Exception {
-    public IllegalOffsetException(String s) {
-        super(s);
+public class IllegalRatioTypeError extends TikwareError {
+    public IllegalRatioTypeError(String message) {
+        super(0x1008, message);
     }
 }

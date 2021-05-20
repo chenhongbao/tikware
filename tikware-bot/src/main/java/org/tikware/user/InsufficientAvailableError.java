@@ -17,8 +17,8 @@
 
 package org.tikware.user;
 
-public class PositionNotFoundException extends RuntimeException {
-    public PositionNotFoundException(String message) {
-        super(message);
+public class InsufficientAvailableError extends TikwareError {
+    public InsufficientAvailableError(String message) {
+        super(0x1009, message);
     }
 }
