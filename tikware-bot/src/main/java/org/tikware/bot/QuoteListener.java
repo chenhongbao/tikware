@@ -32,15 +32,14 @@ public abstract class QuoteListener implements OrderListener {
 
     public QuoteListener(User user, OrderListener child, List<? extends QuoteInfo> infos) {
         this.user = user;
-        this.child  = child;
+        this.child = child;
         this.infos.addAll(infos);
     }
 
     @Override
     public void onTrade(Trade trade) {
         if (infos.size() < trade.getQuantity()) {
-            onError(new QuoteInfoUnderflowError(
-                    "Information needs " + trade.getQuantity() + " elements at least."));
+            callChildError(new QuoteInfoUnderflowError(trade.getQuantity() + "/" + infos.size()));
             return;
         }
         var count = 0;
@@ -49,15 +48,30 @@ public abstract class QuoteListener implements OrderListener {
             try {
                 process(info, trade, user);
             } catch (Throwable error) {
-                onError(error);
+                callChildError(error);
             }
         }
     }
 
     protected abstract void process(QuoteInfo info, Trade trade, User user);
 
+    protected abstract void process(Throwable error);
+
+    protected List<QuoteInfo> infos() {
+        return infos;
+    }
+
+    protected User user() {
+        return user;
+    }
+
     @Override
     public void onError(Throwable error) {
+        process(error);
+        callChildError(error);
+    }
+
+    protected void callChildError(Throwable error) {
         try {
             child.onError(error);
         } catch (Throwable error2) {

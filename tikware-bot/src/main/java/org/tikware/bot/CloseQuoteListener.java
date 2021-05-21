@@ -42,7 +42,14 @@ public class CloseQuoteListener extends QuoteListener {
                     info.getCommissionId(), trade.getPrice());
             child.onTrade(trade);
         } else {
-            onError(new IllegalOffsetError("Illegal trade offset: " + offset + "."));
+            var u = user.getBalance().getUser();
+            onError(new IllegalOffsetError(trade.getId() + "/" + u + "/" + offset.toString()));
         }
+    }
+
+    @Override
+    protected void process(Throwable error) {
+        // Undo rest infos.
+        infos().forEach(info -> user().undo((CloseInfo) info));
     }
 }
