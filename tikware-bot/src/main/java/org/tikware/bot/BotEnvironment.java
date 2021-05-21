@@ -68,10 +68,69 @@ public class BotEnvironment implements Environment {
         } else if (infos.isEmpty()) {
             listener.onError(new IllegalQuantityError("Empty frozen position."));
         } else {
-            synchronized (transaction) {
-                transaction.quote(order, new CloseQuoteListener(user, listener, infos));
+            sendQuote(order, infos, listener);
+        }
+    }
+
+    private void sendQuote(Order order, List<CloseInfo> infos, OrderListener listener) {
+        // Find close today position and build a specific order to close them.
+        var todayInfos = findToday(infos, user.getPersistence().getTradingDay());
+        var today = formOrder(todayInfos, order, 1);
+        // Find yesterday position and build an order for them.
+        var ydInfos = findYd(infos, todayInfos);
+        var yd = formOrder(ydInfos, order, 2);
+        synchronized (transaction) {
+            if (today != null) {
+                today.setOffset(Order.CLOSE_TODAY);
+                transaction.quote(today, new CloseQuoteListener(user, listener, todayInfos));
+            }
+            if (yd != null) {
+                yd.setOffset(Order.CLOSE_YD);
+                transaction.quote(yd, new CloseQuoteListener(user, listener, ydInfos));
             }
         }
+    }
+
+    private List<CloseInfo> findToday(List<CloseInfo> infos, String tradingDay) {
+        var r = new LinkedList<CloseInfo>();
+        infos.forEach(info -> {
+            var pid = info.getPositionId();
+            var p = user.getPositions().get(pid);
+            if (p == null) {
+                throw new PositionNotFoundError(pid);
+            }
+            if (p.getOpenTradingDay().equals(tradingDay)) {
+                r.add(info);
+            }
+        });
+        return r;
+    }
+
+    private List<CloseInfo> findYd(List<CloseInfo> infos, List<CloseInfo> todayInfos) {
+        var s = new HashSet<>(todayInfos);
+        var r = new LinkedList<CloseInfo>();
+        infos.forEach(info -> {
+            if (!s.contains(info)) {
+                r.add(info);
+            }
+        });
+        return r;
+    }
+
+    private Order formOrder(List<CloseInfo> infos, Order order, int subOrder) {
+        if (infos.isEmpty()) {
+            return null;
+        }
+        var x = new Order();
+        x.setId(order.getId() + "/" + subOrder);
+        x.setSymbol(order.getSymbol());
+        x.setUser(order.getUser());
+        x.setDirection(order.getDirection());
+        x.setExchange(order.getExchange());
+        x.setTime(order.getTime());
+        x.setPrice(order.getPrice());
+        x.setQuantity((long)infos.size());
+        return x;
     }
 
     private List<CloseInfo> freezeClose(String u, String symbol, Character direction, Double price,

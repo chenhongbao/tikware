@@ -34,6 +34,8 @@ public class Order {
     public static final Character SELL = 'G';
     public static final Character OPEN = 'H';
     public static final Character CLOSE = 'I';
+    public static final Character CLOSE_YD = 'J';
+    public static final Character CLOSE_TODAY = 'K';
 
     public String getUser() {
         return user;
