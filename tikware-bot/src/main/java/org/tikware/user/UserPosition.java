@@ -33,27 +33,27 @@ public class UserPosition {
     /**
      * Long position.
      */
-    public static final Character LONG = 'a';
+    public static final Character LONG = 'T';
 
     /**
      * Short position.
      */
-    public static final Character SHORT = 'b';
+    public static final Character SHORT = 'U';
 
     /**
      * The position is frozen for opening.
      */
-    public static final Character FROZEN_OPEN = 'A';
+    public static final Character FROZEN_OPEN = 'V';
 
     /**
      * The position is frozen for closing.
      */
-    public static final Character FROZEN_CLOSE = 'B';
+    public static final Character FROZEN_CLOSE = 'W';
 
     /**
      * The position is normal.
      */
-    public static final Character NORMAL = 'C';
+    public static final Character NORMAL = 'X';
 
     public String getUser() {
         return user;

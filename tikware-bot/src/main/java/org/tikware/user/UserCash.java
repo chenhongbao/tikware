@@ -28,17 +28,17 @@ public class UserCash {
     /**
      * Cash is from deposit, positive amount.
      */
-    public static final Character DEPOSIT = '0';
+    public static final Character DEPOSIT = 'G';
 
     /**
      * Cash is for withdraw, negative amount.
      */
-    public static final Character WITHDRAW = '1';
+    public static final Character WITHDRAW = 'H';
 
     /**
      * Cash is from closing profit, positive or negative amount.
      */
-    public static final Character CLOSE = '2';
+    public static final Character CLOSE = 'I';
 
     public String getUser() {
         return user;

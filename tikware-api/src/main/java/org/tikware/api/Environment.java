@@ -17,6 +17,7 @@
 
 package org.tikware.api;
 
+import java.time.LocalTime;
 import java.util.Collection;
 
 public interface Environment {
@@ -24,7 +25,9 @@ public interface Environment {
 
     void subscribe(String symbol, TickListener listener);
 
-    void subscribe(String symbol, int minutes, CandleListener listener);
+    void subscribe(String symbol, CandleListener listener, int minutes, LocalTime dayEnd);
+
+    void subscribe(String symbol, CandleListener listener, LocalTime... generateTimes);
 
     Balance getBalance();
 

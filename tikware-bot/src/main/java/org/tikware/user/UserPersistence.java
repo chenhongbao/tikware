@@ -27,7 +27,7 @@ public interface UserPersistence {
      *     margin = ratio * volume
      * </code></pre>
      */
-    Character RATIO_BY_VOLUME = 'J';
+    Character RATIO_BY_VOLUME = 'O';
 
     /**
      * Ratio is calculated by amount. For example, margin is calculated by
@@ -35,13 +35,13 @@ public interface UserPersistence {
      *     margin = amount * ratio * volume
      * </code></pre>
      */
-    Character RATIO_BY_AMOUNT = 'K';
+    Character RATIO_BY_AMOUNT = 'P';
 
-    Character ALTER_UPDATE = 'O';
+    Character ALTER_UPDATE = 'Q';
 
-    Character ALTER_DELETE = 'P';
+    Character ALTER_DELETE = 'R';
 
-    Character ALTER_ADD = 'Q';
+    Character ALTER_ADD = 'S';
 
     String getTradingDay();
 

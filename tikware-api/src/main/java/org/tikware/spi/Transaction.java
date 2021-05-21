@@ -21,7 +21,16 @@ import org.tikware.api.Order;
 import org.tikware.api.OrderListener;
 
 public interface Transaction {
+    /**
+     * Send quote to exchange.
+     * @param order quoted order
+     * @param listener callback for responses of the specified order
+     */
     void quote(Order order, OrderListener listener);
 
+    /**
+     * Get today's trading day.
+     * @return trading day string in the form of <pre><code>'yyyyMMdd'</code></pre>
+     */
     String getTradingDay();
 }

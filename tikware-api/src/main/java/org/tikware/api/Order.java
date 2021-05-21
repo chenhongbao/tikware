@@ -30,12 +30,12 @@ public class Order {
     private Character offset;
     private LocalDateTime time;
 
-    public static final Character BUY = 'F';
-    public static final Character SELL = 'G';
-    public static final Character OPEN = 'H';
-    public static final Character CLOSE = 'I';
-    public static final Character CLOSE_YD = 'J';
-    public static final Character CLOSE_TODAY = 'K';
+    public static final Character BUY = 'A';
+    public static final Character SELL = 'B';
+    public static final Character OPEN = 'C';
+    public static final Character CLOSE = 'D';
+    public static final Character CLOSE_YD = 'E';
+    public static final Character CLOSE_TODAY = 'F';
 
     public String getUser() {
         return user;

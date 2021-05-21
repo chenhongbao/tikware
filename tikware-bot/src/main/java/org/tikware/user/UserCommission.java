@@ -31,12 +31,12 @@ public class UserCommission {
     /**
      * The position is frozen.
      */
-    public static final Character FROZEN = 'D';
+    public static final Character FROZEN = 'J';
 
     /**
      * The position is normal.
      */
-    public static final Character NORMAL = 'E';
+    public static final Character NORMAL = 'K';
 
     public String getUser() {
         return user;

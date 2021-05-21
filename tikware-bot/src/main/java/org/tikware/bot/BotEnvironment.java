@@ -23,7 +23,9 @@ import org.tikware.spi.Transaction;
 import org.tikware.user.*;
 
 import java.awt.geom.IllegalPathStateException;
+import java.time.LocalTime;
 import java.util.*;
+import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.stream.Collectors;
 
 public class BotEnvironment implements Environment {
@@ -31,12 +33,14 @@ public class BotEnvironment implements Environment {
     private final LogListener log;
     private final Transaction transaction;
     private final Datafeed datafeed;
+    private final Set<String> subSymbols;
 
     public BotEnvironment(User user, LogListener log, Transaction transaction, Datafeed datafeed) {
         this.user = user;
         this.log = log;
         this.transaction = transaction;
         this.datafeed = datafeed;
+        subSymbols = new ConcurrentSkipListSet<>();
     }
 
     @Override
@@ -191,8 +195,19 @@ public class BotEnvironment implements Environment {
     }
 
     @Override
-    public void subscribe(String symbol, int minutes, CandleListener listener) {
-        datafeed.subscribe(symbol, minutes, listener);
+    public void subscribe(String symbol, CandleListener listener, int minutes, LocalTime dayEnd) {
+        trySubscribe(symbol);
+        // TODO generate minutes candle based on one-minute candle
+    }
+
+    @Override
+    public void subscribe(String symbol, CandleListener listener, LocalTime... generateTimes) {
+        trySubscribe(symbol);
+        // TODO generate minutes candle based on one-minute candle
+    }
+
+    private void trySubscribe(String symbol) {
+        // TODO try subscribe one minute candle and ticks
     }
 
     @Override
