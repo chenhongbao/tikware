@@ -22,6 +22,7 @@ import java.time.LocalDateTime;
 
 public class Trade {
     private String id;
+    private String user;
     private String orderId;
     private String symbol;
     private String exchange;
@@ -29,8 +30,16 @@ public class Trade {
     private Long quantity;
     private Character direction;
     private Character offset;
-    private LocalDate tradingDay;
-    private LocalDateTime time;
+    private String tradingDay;
+    private String time;
+
+    public String getUser() {
+        return user;
+    }
+
+    public void setUser(String user) {
+        this.user = user;
+    }
 
     public String getId() {
         return id;
@@ -96,19 +105,19 @@ public class Trade {
         this.offset = offset;
     }
 
-    public LocalDate getTradingDay() {
+    public String getTradingDay() {
         return tradingDay;
     }
 
-    public void setTradingDay(LocalDate tradingDay) {
+    public void setTradingDay(String tradingDay) {
         this.tradingDay = tradingDay;
     }
 
-    public LocalDateTime getTime() {
+    public String getTime() {
         return time;
     }
 
-    public void setTime(LocalDateTime time) {
+    public void setTime(String time) {
         this.time = time;
     }
 }

@@ -17,6 +17,8 @@
 
 package org.tikware.user;
 
+import org.tikware.api.Trade;
+
 import java.util.Collection;
 
 public interface UserPersistence {
@@ -64,6 +66,10 @@ public interface UserPersistence {
     void addOrUpdateMarginRatio(String symbol, Double ratio, Character direction, Character offset, Character type);
 
     void addOrUpdateCommissionRatio(String symbol, Double ratio, Character direction, Character offset, Character type);
+
+    void addTrade(String user, Trade trade);
+
+    Collection<Trade> getTrades(String user);
 
     UserBalance getUserBalance(String user);
 

@@ -17,11 +17,14 @@
 
 package org.tikware.user;
 
+import org.tikware.api.Trade;
+
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Objects;
 
 public abstract class JdbcUserPersistence implements UserPersistence {
@@ -268,6 +271,81 @@ public abstract class JdbcUserPersistence implements UserPersistence {
         try (Statement stmt = connection().createStatement()) {
             stmt.execute(sql);
         }
+    }
+
+    @Override
+    public void addTrade(String user, Trade trade) {
+       var table = ensureTrade(user);
+        try (PreparedStatement stmt = connection().prepareStatement(
+                "INSERT INTO " + table + " (_ID, _USER, _ORDER_ID, _SYMBOL, _EXCHANGE, _PRICE, " +
+                "_QUANTITY, _DIRECTION, _OFFSET, _TRADING_DAY, _TIME) VALUES " +
+                "(?,?,?,?,?,?,?,?,?,?,?)")) {
+            stmt.setString(1, trade.getId());
+            stmt.setString(2, trade.getUser());
+            stmt.setString(3, trade.getOrderId());
+            stmt.setString(4, trade.getSymbol());
+            stmt.setString(5, trade.getExchange());
+            stmt.setDouble(6, trade.getPrice());
+            stmt.setLong(7, trade.getQuantity());
+            stmt.setString(8, String.valueOf(trade.getDirection()));
+            stmt.setString(9, String.valueOf(trade.getOffset()));
+            stmt.setString(10, trade.getTradingDay());
+            stmt.setString(11, trade.getTime());
+            stmt.execute();
+            if (stmt.getUpdateCount() != 1) {
+                throw new DataInsertionError("Table|" + user, null);
+            }
+        } catch (SQLException throwable) {
+            throw new DataInsertionError("Trade|" + user, throwable);
+        }
+    }
+
+    private String ensureTrade(String user) {
+        var table = userTableName(user, "_TRADE_TABLE");
+        try {
+            if (tableExists("%", table)) {
+                return table;
+            }
+            createTable("CREATE TABLE " + table + " (_ID CHAR(128), _USER CHAR(128), " +
+                        "_ORDER_ID CHAR(128), _SYMBOL CHAR(128), _EXCHANGE CHAR(32), " +
+                        "_PRICE DOUBLE, _QUANTITY INT, _DIRECTION CHAR(1), _OFFSET CHAR(1), " +
+                        "_TRADING_DAY CHAR(8), _TIME CHAR(32))");
+            return table;
+        } catch (SQLException throwable) {
+            throw new TableCreationError("Trade table.", throwable);
+        }
+    }
+
+    @Override
+    public Collection<Trade> getTrades(String user) {
+        ensureTrade(user);
+        var table = userTableName(user, "_TRADE_TABLE");
+        try (PreparedStatement stmt  = connection().prepareStatement("SELECT * FROM " + table)) {
+            var rs = stmt.executeQuery();
+            var r = new HashSet<Trade>();
+            while (rs.next()) {
+                r.add(buildTrade(rs));
+            }
+            return r;
+        } catch (SQLException throwable) {
+            throw new DataQueryError("Trade|" + user, throwable);
+        }
+    }
+
+    private Trade buildTrade(ResultSet rs) throws SQLException {
+        var t = new Trade();
+        t.setId(rs.getString("_ID"));
+        t.setUser(rs.getString("_USER"));
+        t.setOrderId(rs.getString("_ORDER_ID"));
+        t.setSymbol(rs.getString("_SYMBOL"));
+        t.setExchange(rs.getString("_EXCHANGE"));
+        t.setPrice(rs.getDouble("_PRICE"));
+        t.setQuantity(rs.getLong("_QUANTITY"));
+        t.setDirection(rs.getString("_DIRECTION").charAt(0));
+        t.setOffset(rs.getString("_OFFSET").charAt(0));
+        t.setTradingDay(rs.getString("_TRADING_DAY"));
+        t.setTime(rs.getString("_TIME"));
+        return t;
     }
 
     @Override

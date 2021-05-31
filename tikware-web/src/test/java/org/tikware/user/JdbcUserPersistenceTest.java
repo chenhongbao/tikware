@@ -22,6 +22,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.tikware.api.Order;
+import org.tikware.api.Trade;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -448,5 +449,44 @@ public class JdbcUserPersistenceTest {
         // Check delete result.
         us = db().getUserInfos();
         assertTrue(us.isEmpty());
+    }
+
+    @Test
+    public void getTrade() {
+        var t = new Trade();
+        t.setId("T-10000001");
+        t.setUser("hb.chen");
+        t.setOrderId("O-1111110");
+        t.setSymbol("c2109");
+        t.setExchange("DCE");
+        t.setPrice(2650.0D);
+        t.setQuantity(1L);
+        t.setDirection(Order.BUY);
+        t.setOffset(Order.OPEN);
+        t.setTradingDay("20210531");
+        t.setTime("20210531 14:56:54 653");
+        // Query empty table.
+        var ts = db().getTrades("hb.chen");
+        assertNotNull(ts);
+        // Add trade.
+        if (ts.isEmpty()) {
+            db().addTrade("hb.chen", t);
+            ts = db().getTrades("hb.chen");
+            assertNotNull(ts);
+            assertTrue(!ts.isEmpty());
+        }
+        // Check fields.
+        var t0 = ts.iterator().next();
+        assertEquals(t.getId(), t0.getId());
+        assertEquals(t.getUser(), t0.getUser());
+        assertEquals(t.getOrderId(), t0.getOrderId());
+        assertEquals(t.getSymbol(), t0.getSymbol());
+        assertEquals(t.getExchange(), t0.getExchange());
+        assertEquals(t.getPrice(), t0.getPrice());
+        assertEquals(t.getQuantity(), t0.getQuantity());
+        assertEquals(t.getDirection(), t0.getDirection());
+        assertEquals(t.getOffset(), t0.getOffset());
+        assertEquals(t.getTradingDay(), t0.getTradingDay());
+        assertEquals(t.getTime(), t0.getTime());
     }
 }
