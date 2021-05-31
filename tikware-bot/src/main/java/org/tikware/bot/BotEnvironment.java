@@ -23,7 +23,6 @@ import org.tikware.spi.Transaction;
 import org.tikware.user.*;
 
 import java.awt.geom.IllegalPathStateException;
-import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -187,24 +186,13 @@ public class BotEnvironment implements Environment {
     }
 
     @Override
-    public void subscribe(String symbol, TickListener listener) {
-        datafeed.subscribe(symbol, listener);
-    }
-
-    @Override
-    public void subscribe(String symbol, CandleListener listener, int minutes, LocalTime dayEnd) {
-        trySubscribe(symbol);
-        // TODO generate minutes candle based on one-minute candle
-    }
-
-    @Override
-    public void subscribe(String symbol, CandleListener listener, LocalTime... generateTimes) {
-        trySubscribe(symbol);
-        // TODO generate minutes candle based on one-minute candle
-    }
-
-    private void trySubscribe(String symbol) {
-        // TODO try subscribe one minute candle and ticks
+    public void subscribe(String symbol, TickListener tick, CandleListener candle) {
+        if (tick != null) {
+            datafeed.subscribe(symbol, tick);
+        }
+        if (candle != null) {
+            datafeed.subscribe(symbol, candle);
+        }
     }
 
     @Override

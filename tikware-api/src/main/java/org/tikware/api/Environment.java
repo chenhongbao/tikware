@@ -23,11 +23,7 @@ import java.util.Collection;
 public interface Environment {
     void quote(Order order, OrderListener listener);
 
-    void subscribe(String symbol, TickListener listener);
-
-    void subscribe(String symbol, CandleListener listener, int minutes, LocalTime dayEnd);
-
-    void subscribe(String symbol, CandleListener listener, LocalTime... generateTimes);
+    void subscribe(String symbol, TickListener tick, CandleListener candle);
 
     Balance getBalance();
 
