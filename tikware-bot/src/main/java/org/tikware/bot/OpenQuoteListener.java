@@ -27,11 +27,9 @@ import org.tikware.user.User;
 import java.util.List;
 
 public class OpenQuoteListener extends QuoteListener {
-    private final OrderListener child;
 
     public OpenQuoteListener(User user, OrderListener child, List<OpenInfo> infos) {
         super(user, child, infos);
-        this.child = child;
     }
 
     @Override
@@ -40,7 +38,6 @@ public class OpenQuoteListener extends QuoteListener {
         if (offset == Order.OPEN) {
             user.open(user.getBalance().getUser(), info.getPositionId(),
                     info.getCommissionId(), trade.getPrice());
-            child.onTrade(trade);
         } else {
             var u = user.getBalance().getUser();
             onError(new IllegalOffsetError(trade.getId() + "/" + u + "/" + offset.toString()));

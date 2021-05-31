@@ -38,12 +38,20 @@ public abstract class QuoteListener implements OrderListener {
 
     @Override
     public void onTrade(Trade trade) {
-        if (infos.size() < trade.getQuantity()) {
-            callChildError(new QuoteInfoUnderflowError(trade.getQuantity() + "/" + infos.size()));
+        // Fill user field and persist trade.
+        final var u = user.getBalance().getUser();
+        trade.setUser(u);
+        user.getPersistence().addTrade(u, trade);
+        // Check quantity mismatch.
+        final var q = trade.getQuantity();
+        if (infos.size() < q) {
+            callChildError(new QuoteInfoUnderflowError(q + "/" + infos.size()));
             return;
         }
         var count = 0;
-        while (count++ < trade.getQuantity()) {
+        // Set trade quantity to one so each quote info has only one trade.
+        trade.setQuantity(1L);
+        while (count++ < q) {
             var info = infos.remove(0);
             try {
                 process(info, trade, user);
